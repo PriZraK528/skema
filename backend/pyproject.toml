@@ -1,0 +1,34 @@
+[project]
+name = "clinic-backend"
+version = "0.1.0"
+description = "Backend for online patient appointment management service"
+requires-python = ">=3.9"
+dependencies = [
+  "fastapi>=0.115",
+  "uvicorn[standard]>=0.30",
+  "pydantic>=2.8",
+  "pydantic-settings>=2.4",
+  "sqlalchemy>=2.0",
+  "alembic>=1.13",
+  "psycopg[binary]>=3.2",
+  "python-jose[cryptography]>=3.3",
+  "passlib[bcrypt]>=1.7",
+  "python-multipart>=0.0.9",
+  "orjson>=3.10",
+]
+
+[project.optional-dependencies]
+dev = [
+  "pytest>=8.0",
+  "httpx>=0.27",
+  "schemathesis>=3.25",
+  "hypothesis>=6.100",
+  "ruff>=0.6",
+]
+
+[tool.ruff]
+line-length = 100
+target-version = "py39"
+
+[tool.pytest.ini_options]
+testpaths = ["tests"]
