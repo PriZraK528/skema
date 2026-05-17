@@ -19,7 +19,7 @@ async def lifespan(_app: FastAPI):
 
 def create_app() -> FastAPI:
     app = FastAPI(
-        title="Clinic Online Appointments API",
+        title="SKEMA API",
         version="1.0.0",
         description="REST API для управления онлайн-записями пациентов",
         lifespan=lifespan,

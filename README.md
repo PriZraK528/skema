@@ -1,4 +1,4 @@
-# Сервис управления онлайн-записями пациентов
+# SKEMA — сервис управления онлайн-записями пациентов
 
 Fullstack CRUD-приложение: **Python (FastAPI)** + **PostgreSQL** + **React (Vite/TypeScript)**.  
 Реализованы регистрация/авторизация (JWT), ролевая модель, расписание врачей, онлайн-запись, уведомления, REST API с JSON, фильтрация и поиск.
@@ -107,19 +107,3 @@ pytest tests/test_schemathesis.py  # OpenAPI fuzzing (медленнее)
 | POST | `/appointments/assign` | Назначение врачом |
 | POST | `/appointments/{id}/cancel`, `.../reschedule` | Отмена / перенос |
 | GET | `/notifications` | Уведомления |
-
-## 12-factor
-
-- **Конфиг** — только через env (`docker-compose.yml`)
-- **Зависимости** — `pyproject.toml`, `package.json`
-- **Логи** — stdout контейнеров
-- **Процессы** — stateless API, состояние в PostgreSQL
-- **Миграции** — Alembic в `entrypoint.sh`
-
-## Git
-
-```bash
-git init
-git add .
-git commit -m "Initial commit: clinic online appointments fullstack app"
-```

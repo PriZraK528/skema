@@ -1,4 +1,6 @@
-from sqlalchemy import create_engine
+import enum
+
+from sqlalchemy import Enum, create_engine
 from sqlalchemy.orm import DeclarativeBase, sessionmaker
 
 from app.settings import settings
@@ -6,6 +8,12 @@ from app.settings import settings
 
 class Base(DeclarativeBase):
     pass
+
+
+def db_enum(enum_cls: type[enum.Enum], name: str) -> Enum:
+    """PostgreSQL: native ENUM (как в Alembic). SQLite: VARCHAR (для тестов)."""
+    native = settings.database_url.startswith("postgresql")
+    return Enum(enum_cls, name=name, native_enum=native)
 
 
 engine = create_engine(settings.database_url, pool_pre_ping=True)

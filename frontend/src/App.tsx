@@ -52,6 +52,10 @@ function AuthScreen({
   return (
     <div className="auth-wrap">
       <div className="card">
+        <div className="auth-header">
+          <h1 className="brand">SKEMA</h1>
+          <p className="brand-sub">Онлайн-запись пациентов</p>
+        </div>
         <h2>{mode === "login" ? "Вход" : "Регистрация"}</h2>
         {error && <p className="error">{error}</p>}
         <form onSubmit={submit}>
@@ -503,7 +507,8 @@ export default function App() {
   return (
     <div className="layout">
       <aside className="sidebar">
-        <h1>Clinic Online</h1>
+        <h1 className="brand">SKEMA</h1>
+        <p className="brand-sub">Онлайн-запись</p>
         <button
           type="button"
           className={`nav-btn ${tab === "appointments" ? "active" : ""}`}

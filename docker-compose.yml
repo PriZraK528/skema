@@ -9,6 +9,11 @@ services:
       - "5432:5432"
     volumes:
       - db_data:/var/lib/postgresql/data
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U clinic -d clinic"]
+      interval: 3s
+      timeout: 5s
+      retries: 10
 
   backend:
     build:
@@ -24,7 +29,8 @@ services:
       CORS_ORIGINS: http://localhost:5173
       SEED_ON_STARTUP: "true"
     depends_on:
-      - db
+      db:
+        condition: service_healthy
     ports:
       - "8000:8000"
 
