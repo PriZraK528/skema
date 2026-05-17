@@ -17,6 +17,7 @@ class Settings(BaseSettings):
     jwt_refresh_token_expires_days: int = 14
 
     cors_origins: str = "http://localhost:5173"
+    seed_on_startup: bool = False
 
     @property
     def cors_origins_list(self) -> list[str]:

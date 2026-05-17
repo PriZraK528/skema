@@ -5,6 +5,7 @@ __pycache__/
 .Python
 *.sqlite3
 .pytest_cache/
+.hypothesis/
 .mypy_cache/
 .ruff_cache/
 .venv/

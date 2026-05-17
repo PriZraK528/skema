@@ -1,46 +1,125 @@
 # Сервис управления онлайн-записями пациентов
 
-Fullstack CRUD-приложение (Python backend + Web frontend) для управления пациентами, врачами и онлайн-записями (appointments).
+Fullstack CRUD-приложение: **Python (FastAPI)** + **PostgreSQL** + **React (Vite/TypeScript)**.  
+Реализованы регистрация/авторизация (JWT), ролевая модель, расписание врачей, онлайн-запись, уведомления, REST API с JSON, фильтрация и поиск.
 
-## Технологии
+## Функциональность
 
-- Backend: **Python 3.11**, **FastAPI**, SQLAlchemy, Alembic, JWT (auth), pytest, schemathesis/hypothesis (фаззинг)
-- DB: **PostgreSQL 16**
-- Frontend: **React + Vite + TypeScript**
-- Infra: **Docker**, **docker-compose**, Git
+| Модуль | Возможности |
+|--------|-------------|
+| **Пользователи** | Регистрация, вход, refresh-токен, профиль, роли: `admin`, `doctor`, `patient`, `registrar` |
+| **Расписание** | Правила по дням недели, исключения, свободные слоты, автообновление (`POST .../schedule/refresh`) |
+| **Записи** | Запись, отмена, перенос, история, назначение врачом (`POST /api/appointments/assign`) |
+| **Уведомления** | О записи, переносе, отмене, изменении расписания; напоминания (`POST /api/notifications/reminders/run`) |
+| **API** | OpenAPI `/docs`, JSON, пагинация, query-фильтры (`q`, `status`, `from`, `to`) |
 
 ## Структура проекта
 
 ```
 skema/
-  backend/                 # FastAPI-приложение, миграции, сиды, тесты
-    app/
-      main.py
-      settings.py
-    Dockerfile
-    pyproject.toml
-  frontend/                # Vite/React приложение
-    src/
-      main.tsx
-    Dockerfile
-    package.json
-  docker-compose.yml       # запуск всего стека
-  .gitignore
-  README.md
+├── backend/                    # FastAPI
+│   ├── app/
+│   │   ├── main.py             # точка входа, роутеры
+│   │   ├── models.py           # SQLAlchemy-модели
+│   │   ├── security.py         # JWT, bcrypt
+│   │   ├── deps.py             # авторизация, RBAC
+│   │   ├── seed.py             # тестовые данные
+│   │   ├── routers/            # REST endpoints
+│   │   ├── schemas/            # Pydantic DTO
+│   │   └── services/           # бизнес-логика
+│   ├── alembic/                # миграции БД
+│   ├── tests/                  # pytest, hypothesis, schemathesis
+│   ├── Dockerfile
+│   └── pyproject.toml
+├── frontend/                   # React SPA
+│   ├── src/App.tsx
+│   ├── src/api.ts
+│   └── Dockerfile
+├── docker-compose.yml
+└── README.md
 ```
 
 ## Запуск (Docker)
+
+1. Запустите **Docker Desktop**.
+2. В корне проекта:
 
 ```bash
 docker compose up --build
 ```
 
-- Backend: `http://localhost:8000` (health: `/health`, swagger: `/docs`)
-- Frontend: `http://localhost:5173`
+- API: http://localhost:8000 (Swagger: http://localhost:8000/docs)
+- UI: http://localhost:5173
 
-## Примечания по 12-factor
+### Тестовые учётные записи (пароль для всех: `Password123!`)
 
-- Конфигурация через переменные окружения (см. `docker-compose.yml`)
-- Логи пишутся в stdout/stderr контейнеров
-- Stateless backend (состояние в БД)
+| Email | Роль |
+|-------|------|
+| admin@clinic.example | admin |
+| doctor@clinic.example | doctor |
+| registrar@clinic.example | registrar |
+| patient@clinic.example | patient |
 
+## Локальная разработка
+
+**Backend:**
+
+```bash
+cd backend
+pip install -e ".[dev]"
+# PostgreSQL на localhost:5432 (см. docker-compose)
+alembic upgrade head
+python -c "from app.seed import run_seed; run_seed()"
+uvicorn app.main:app --reload
+```
+
+**Frontend:**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+Переменные окружения (12-factor): `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ORIGINS`, `SEED_ON_STARTUP`.
+
+## Тестирование
+
+```bash
+cd backend
+pytest -q                          # unit + роли + hypothesis
+pytest tests/test_schemathesis.py  # OpenAPI fuzzing (медленнее)
+```
+
+- Валидация ролей: отклонение `admin` при саморегистрации, неверных строк роли.
+- Фаззинг: Hypothesis (схемы) + Schemathesis (HTTP по OpenAPI).
+
+## Основные API (префикс `/api`)
+
+| Метод | Путь | Описание |
+|-------|------|----------|
+| POST | `/auth/register`, `/auth/login` | Регистрация / вход |
+| GET/PATCH | `/auth/me` | Профиль |
+| GET | `/doctors` | Список врачей (поиск `q`) |
+| GET/POST | `/doctors/{id}/schedule/rules` | Расписание |
+| GET | `/doctors/{id}/slots/free?from=&to=` | Свободные окна |
+| GET/POST | `/appointments` | Записи, фильтры |
+| POST | `/appointments/assign` | Назначение врачом |
+| POST | `/appointments/{id}/cancel`, `.../reschedule` | Отмена / перенос |
+| GET | `/notifications` | Уведомления |
+
+## 12-factor
+
+- **Конфиг** — только через env (`docker-compose.yml`)
+- **Зависимости** — `pyproject.toml`, `package.json`
+- **Логи** — stdout контейнеров
+- **Процессы** — stateless API, состояние в PostgreSQL
+- **Миграции** — Alembic в `entrypoint.sh`
+
+## Git
+
+```bash
+git init
+git add .
+git commit -m "Initial commit: clinic online appointments fullstack app"
+```
