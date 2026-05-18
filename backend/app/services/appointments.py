@@ -17,12 +17,16 @@ from app.models import (
 )
 from app.schemas.appointment import AppointmentOut
 from app.services.notifications import create_notification
-from app.services.schedule import get_day_schedule, is_slot_available
+from app.services.schedule import get_availability_slot, is_slot_available
 
 
-def _appointment_duration_minutes(db: Session, doctor_id: int, starts_at: datetime) -> int:
-    working, _, _, slot_minutes = get_day_schedule(db, doctor_id, starts_at.date())
-    return slot_minutes if working else 30
+def _ends_at_from_availability(db: Session, doctor_id: int, starts_at: datetime) -> datetime:
+    from app.services.schedule import _normalize_dt
+
+    slot = get_availability_slot(db, doctor_id, starts_at)
+    if not slot:
+        raise HTTPException(status_code=409, detail="Selected time slot is not available")
+    return _normalize_dt(slot.ends_at)
 
 
 def enrich_appointment(appointment: Appointment) -> AppointmentOut:
@@ -78,8 +82,9 @@ def create_appointment(
     note: str | None,
     patient_id: int | None,
 ) -> Appointment:
-    if starts_at.tzinfo is None:
-        starts_at = starts_at.replace(tzinfo=timezone.utc)
+    from app.services.schedule import _normalize_dt
+
+    starts_at = _normalize_dt(starts_at)
 
     doctor = db.get(Doctor, doctor_id)
     if not doctor:
@@ -90,8 +95,7 @@ def create_appointment(
             raise HTTPException(status_code=403, detail="Doctor can only use own schedule when assigning")
 
     pid = resolve_patient_id(db, user, patient_id)
-    duration = _appointment_duration_minutes(db, doctor_id, starts_at)
-    ends_at = starts_at + timedelta(minutes=duration)
+    ends_at = _ends_at_from_availability(db, doctor_id, starts_at)
 
     if not is_slot_available(db, doctor_id, starts_at, ends_at):
         raise HTTPException(status_code=409, detail="Selected time slot is not available")
@@ -163,11 +167,11 @@ def reschedule_appointment(
         raise HTTPException(status_code=400, detail="Only booked appointments can be rescheduled")
     _check_access(appointment, user, write=True)
 
-    if new_starts_at.tzinfo is None:
-        new_starts_at = new_starts_at.replace(tzinfo=timezone.utc)
+    from app.services.schedule import _normalize_dt
 
-    duration = _appointment_duration_minutes(db, appointment.doctor_id, new_starts_at)
-    new_ends_at = new_starts_at + timedelta(minutes=duration)
+    new_starts_at = _normalize_dt(new_starts_at)
+
+    new_ends_at = _ends_at_from_availability(db, appointment.doctor_id, new_starts_at)
 
     if not is_slot_available(db, appointment.doctor_id, new_starts_at, new_ends_at):
         raise HTTPException(status_code=409, detail="Selected time slot is not available")

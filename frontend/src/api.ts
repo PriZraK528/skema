@@ -60,14 +60,13 @@ export interface Notification {
   created_at: string;
 }
 
-export interface ScheduleRule {
+export interface AvailabilitySlot {
   id: number;
   doctor_id: number;
-  weekday: number;
-  start_time: string;
-  end_time: string;
-  slot_minutes: number;
+  starts_at: string;
+  ends_at: string;
   is_active: boolean;
+  is_booked: boolean;
 }
 
 function authHeaders(): HeadersInit {
@@ -116,17 +115,15 @@ export const api = {
     request<FreeSlot[]>(
       `/api/doctors/${doctorId}/slots/free?from=${from}${to ? `&to=${to}` : ""}`,
     ),
-  scheduleRules: (doctorId: number) =>
-    request<ScheduleRule[]>(`/api/doctors/${doctorId}/schedule/rules`),
-  createScheduleRule: (doctorId: number, data: Record<string, unknown>) =>
-    request<ScheduleRule>(`/api/doctors/${doctorId}/schedule/rules`, {
+  availabilitySlots: (doctorId: number) =>
+    request<AvailabilitySlot[]>(`/api/doctors/${doctorId}/schedule/slots`),
+  createAvailabilitySlot: (doctorId: number, data: Record<string, unknown>) =>
+    request<AvailabilitySlot>(`/api/doctors/${doctorId}/schedule/slots`, {
       method: "POST",
       body: JSON.stringify(data),
     }),
-  refreshSchedule: (doctorId: number) =>
-    request<{ message: string }>(`/api/doctors/${doctorId}/schedule/refresh`, {
-      method: "POST",
-    }),
+  deleteAvailabilitySlot: (slotId: number) =>
+    request<{ message: string }>(`/api/schedule/slots/${slotId}`, { method: "DELETE" }),
   appointments: (params?: string) =>
     request<Paginated<Appointment>>(`/api/appointments?limit=50${params ?? ""}`),
   history: () => request<Paginated<Appointment>>("/api/appointments/history?limit=50"),

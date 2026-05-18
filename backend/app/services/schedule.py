@@ -1,55 +1,23 @@
 from __future__ import annotations
 
-from datetime import date, datetime, time, timedelta, timezone
-from typing import Iterable
+from datetime import date, datetime, timedelta, timezone
 
+from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
-from app.models import Appointment, AppointmentStatus, Doctor, DoctorScheduleRule, ScheduleException
+from app.models import Appointment, AppointmentStatus, Doctor, DoctorAvailabilitySlot
 
 
-def _combine_utc(d: date, t: time) -> datetime:
-    return datetime.combine(d, t, tzinfo=timezone.utc)
+def _ensure_utc(dt: datetime) -> datetime:
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt.astimezone(timezone.utc)
 
 
-def _iter_slot_starts(start: time, end: time, slot_minutes: int) -> Iterable[time]:
-    cursor = datetime.combine(date.today(), start)
-    end_dt = datetime.combine(date.today(), end)
-    delta = timedelta(minutes=slot_minutes)
-    while cursor + delta <= end_dt:
-        yield cursor.time()
-        cursor += delta
-
-
-def get_day_schedule(
-    db: Session,
-    doctor_id: int,
-    day: date,
-) -> tuple[bool, time | None, time | None, int]:
-    """Return (is_working, start, end, slot_minutes)."""
-    exception = db.scalar(
-        select(ScheduleException).where(
-            ScheduleException.doctor_id == doctor_id,
-            ScheduleException.exception_date == day,
-        )
-    )
-    if exception:
-        if exception.is_day_off:
-            return False, None, None, 30
-        return True, exception.start_time, exception.end_time, exception.slot_minutes or 30
-
-    weekday = day.weekday()
-    rule = db.scalar(
-        select(DoctorScheduleRule).where(
-            DoctorScheduleRule.doctor_id == doctor_id,
-            DoctorScheduleRule.weekday == weekday,
-            DoctorScheduleRule.is_active.is_(True),
-        )
-    )
-    if not rule:
-        return False, None, None, 30
-    return True, rule.start_time, rule.end_time, rule.slot_minutes
+def _normalize_dt(dt: datetime) -> datetime:
+    """Drop microseconds so API round-trips match DB values."""
+    return _ensure_utc(dt).replace(microsecond=0)
 
 
 def get_booked_ranges(
@@ -69,57 +37,146 @@ def get_booked_ranges(
     return [(a.starts_at, a.ends_at) for a in rows]
 
 
+def _overlaps_booked(
+    starts_at: datetime,
+    ends_at: datetime,
+    booked: list[tuple[datetime, datetime]],
+) -> bool:
+    return any(not (ends_at <= b_start or starts_at >= b_end) for b_start, b_end in booked)
+
+
+def list_availability_slots(
+    db: Session,
+    doctor_id: int,
+    *,
+    from_date: date | None = None,
+    to_date: date | None = None,
+    only_free: bool = False,
+) -> list[DoctorAvailabilitySlot]:
+    now = datetime.now(timezone.utc)
+    stmt = select(DoctorAvailabilitySlot).where(
+        DoctorAvailabilitySlot.doctor_id == doctor_id,
+        DoctorAvailabilitySlot.is_active.is_(True),
+    )
+    if from_date:
+        stmt = stmt.where(
+            DoctorAvailabilitySlot.starts_at
+            >= datetime.combine(from_date, datetime.min.time(), tzinfo=timezone.utc)
+        )
+    if to_date:
+        end = datetime.combine(to_date, datetime.max.time(), tzinfo=timezone.utc)
+        stmt = stmt.where(DoctorAvailabilitySlot.starts_at <= end)
+    stmt = stmt.where(DoctorAvailabilitySlot.starts_at > now).order_by(
+        DoctorAvailabilitySlot.starts_at
+    )
+    slots = list(db.scalars(stmt).all())
+    if not slots:
+        return []
+
+    range_start = slots[0].starts_at
+    range_end = slots[-1].ends_at
+    booked = get_booked_ranges(db, doctor_id, range_start, range_end)
+
+    if only_free:
+        return [s for s in slots if not _overlaps_booked(s.starts_at, s.ends_at, booked)]
+    return slots
+
+
 def compute_free_slots(
     db: Session,
     doctor: Doctor,
     from_date: date,
     to_date: date,
 ) -> list[tuple[datetime, datetime]]:
-    slots: list[tuple[datetime, datetime]] = []
-    day = from_date
-    while day <= to_date:
-        working, start_t, end_t, slot_minutes = get_day_schedule(db, doctor.id, day)
-        if working and start_t and end_t:
-            for slot_start in _iter_slot_starts(start_t, end_t, slot_minutes):
-                starts_at = _combine_utc(day, slot_start)
-                ends_at = starts_at + timedelta(minutes=slot_minutes)
-                if starts_at > datetime.now(timezone.utc):
-                    slots.append((starts_at, ends_at))
-        day += timedelta(days=1)
+    slots = list_availability_slots(
+        db, doctor.id, from_date=from_date, to_date=to_date, only_free=True
+    )
+    return [(s.starts_at, s.ends_at) for s in slots]
 
-    if not slots:
-        return []
 
-    range_start = slots[0][0]
-    range_end = slots[-1][1]
-    booked = get_booked_ranges(db, doctor.id, range_start, range_end)
-
-    free: list[tuple[datetime, datetime]] = []
-    for starts_at, ends_at in slots:
-        overlap = any(not (ends_at <= b_start or starts_at >= b_end) for b_start, b_end in booked)
-        if not overlap:
-            free.append((starts_at, ends_at))
-    return free
+def get_availability_slot(
+    db: Session,
+    doctor_id: int,
+    starts_at: datetime,
+) -> DoctorAvailabilitySlot | None:
+    starts_at = _normalize_dt(starts_at)
+    slots = db.scalars(
+        select(DoctorAvailabilitySlot).where(
+            DoctorAvailabilitySlot.doctor_id == doctor_id,
+            DoctorAvailabilitySlot.is_active.is_(True),
+        )
+    ).all()
+    for slot in slots:
+        if _normalize_dt(slot.starts_at) == starts_at:
+            return slot
+    return None
 
 
 def is_slot_available(db: Session, doctor_id: int, starts_at: datetime, ends_at: datetime) -> bool:
-    day = starts_at.date()
-    working, start_t, end_t, slot_minutes = get_day_schedule(db, doctor_id, day)
-    if not working or not start_t or not end_t:
+    starts_at = _normalize_dt(starts_at)
+    ends_at = _normalize_dt(ends_at)
+    slot = get_availability_slot(db, doctor_id, starts_at)
+    if not slot or _normalize_dt(slot.ends_at) != ends_at:
         return False
-    if starts_at.time() < start_t or ends_at.time() > end_t:
+    if starts_at <= datetime.now(timezone.utc):
         return False
-    expected_end = starts_at + timedelta(minutes=slot_minutes)
-    if ends_at != expected_end:
-        return False
-
     booked = get_booked_ranges(
         db,
         doctor_id,
-        starts_at - timedelta(days=1),
-        ends_at + timedelta(days=1),
+        starts_at - timedelta(seconds=1),
+        ends_at + timedelta(seconds=1),
     )
-    for b_start, b_end in booked:
-        if not (ends_at <= b_start or starts_at >= b_end):
-            return False
-    return True
+    return not _overlaps_booked(starts_at, ends_at, booked)
+
+
+def create_availability_slot(
+    db: Session,
+    doctor: Doctor,
+    starts_at: datetime,
+    ends_at: datetime,
+) -> DoctorAvailabilitySlot:
+    starts_at = _normalize_dt(starts_at)
+    ends_at = _normalize_dt(ends_at)
+    if ends_at <= starts_at:
+        raise HTTPException(status_code=400, detail="ends_at must be after starts_at")
+    if starts_at <= datetime.now(timezone.utc):
+        raise HTTPException(status_code=400, detail="Cannot create slots in the past")
+
+    existing = get_availability_slot(db, doctor.id, starts_at)
+    if existing:
+        raise HTTPException(status_code=409, detail="Slot at this time already exists")
+
+    overlap = db.scalar(
+        select(DoctorAvailabilitySlot).where(
+            DoctorAvailabilitySlot.doctor_id == doctor.id,
+            DoctorAvailabilitySlot.is_active.is_(True),
+            DoctorAvailabilitySlot.starts_at < ends_at,
+            DoctorAvailabilitySlot.ends_at > starts_at,
+        )
+    )
+    if overlap:
+        raise HTTPException(status_code=409, detail="Overlaps with another availability slot")
+
+    slot = DoctorAvailabilitySlot(
+        doctor_id=doctor.id,
+        starts_at=starts_at,
+        ends_at=ends_at,
+    )
+    db.add(slot)
+    db.flush()
+    return slot
+
+
+def delete_availability_slot(db: Session, slot: DoctorAvailabilitySlot) -> None:
+    booked = get_booked_ranges(
+        db,
+        slot.doctor_id,
+        slot.starts_at,
+        slot.ends_at + timedelta(seconds=1),
+    )
+    if _overlaps_booked(slot.starts_at, slot.ends_at, booked):
+        raise HTTPException(
+            status_code=409,
+            detail="Cannot delete slot with an active appointment",
+        )
+    db.delete(slot)

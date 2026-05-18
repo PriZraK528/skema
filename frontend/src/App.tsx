@@ -5,14 +5,17 @@ import {
   Doctor,
   FreeSlot,
   Notification,
-  ScheduleRule,
+  AvailabilitySlot,
   User,
   UserRole,
 } from "./api";
 
-const WEEKDAYS = ["Пн", "Вт", "Ср", "Чт", "Пт", "Сб", "Вс"];
-
 type Tab = "appointments" | "schedule" | "notifications" | "profile" | "users";
+
+function toLocalDatetimeInputValue(d: Date): string {
+  const pad = (n: number) => String(n).padStart(2, "0");
+  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
+}
 
 function AuthScreen({
   onAuth,
@@ -196,8 +199,11 @@ function AppointmentsPanel({ user }: { user: User }) {
               ))}
             </select>
             <button type="button" className="ghost" onClick={loadSlots}>
-              Показать свободные окна
+              Обновить свободные окна
             </button>
+            {slots.length === 0 && (
+              <p className="muted">Нет свободных окон — врач должен добавить их в разделе «Расписание».</p>
+            )}
             <label>Слот</label>
             <select value={slot} onChange={(e) => setSlot(e.target.value)}>
               {slots.map((s) => (
@@ -286,11 +292,13 @@ function AppointmentsPanel({ user }: { user: User }) {
 
 function SchedulePanel({ user }: { user: User }) {
   const [doctorId, setDoctorId] = useState(1);
-  const [rules, setRules] = useState<ScheduleRule[]>([]);
-  const [weekday, setWeekday] = useState(0);
-  const [start, setStart] = useState("09:00");
-  const [end, setEnd] = useState("17:00");
+  const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
+  const [startsAt, setStartsAt] = useState(() =>
+    toLocalDatetimeInputValue(new Date(Date.now() + 86400000)),
+  );
+  const [duration, setDuration] = useState(30);
   const [msg, setMsg] = useState("");
+  const [error, setError] = useState("");
 
   const load = async () => {
     const d = await api.doctors();
@@ -299,73 +307,101 @@ function SchedulePanel({ user }: { user: User }) {
         ? d.items.find((x) => x.user_id === user.id)?.id ?? 1
         : doctorId;
     setDoctorId(id);
-    setRules(await api.scheduleRules(id));
+    setSlots(await api.availabilitySlots(id));
   };
 
   useEffect(() => {
     load().catch(console.error);
   }, []);
 
-  const addRule = async () => {
-    await api.createScheduleRule(doctorId, {
-      weekday,
-      start_time: start,
-      end_time: end,
-      slot_minutes: 30,
-    });
-    setMsg("Правило добавлено");
-    await load();
+  const addSlot = async () => {
+    setError("");
+    try {
+      const start = new Date(startsAt);
+      await api.createAvailabilitySlot(doctorId, {
+        starts_at: start.toISOString(),
+        duration_minutes: duration,
+      });
+      setMsg("Окно для записи создано");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка");
+    }
+  };
+
+  const removeSlot = async (id: number) => {
+    setError("");
+    try {
+      await api.deleteAvailabilitySlot(id);
+      setMsg("Окно удалено");
+      await load();
+    } catch (e) {
+      setError(e instanceof Error ? e.message : "Ошибка");
+    }
   };
 
   return (
     <div className="card">
-      <h2>Расписание врача</h2>
-      <p className="muted">Создание и редактирование графика, автообновление слотов</p>
+      <h2>Мои окна для записи</h2>
+      <p className="muted">
+        Пациенты видят только те слоты, которые вы создали здесь. По умолчанию свободных окон нет.
+      </p>
       {msg && <p className="muted">{msg}</p>}
+      {error && <p className="error">{error}</p>}
       <div className="grid2">
         <div>
-          <label>День недели</label>
-          <select value={weekday} onChange={(e) => setWeekday(Number(e.target.value))}>
-            {WEEKDAYS.map((w, i) => (
-              <option key={w} value={i}>
-                {w}
-              </option>
-            ))}
-          </select>
-          <label>Начало</label>
-          <input type="time" value={start} onChange={(e) => setStart(e.target.value)} />
-          <label>Конец</label>
-          <input type="time" value={end} onChange={(e) => setEnd(e.target.value)} />
-          <button type="button" className="primary" onClick={addRule}>
-            Добавить правило
-          </button>
-          <button
-            type="button"
-            className="ghost"
-            onClick={() => api.refreshSchedule(doctorId).then((r) => setMsg(r.message))}
-          >
-            Обновить расписание
+          <label>Начало приёма</label>
+          <input
+            type="datetime-local"
+            value={startsAt}
+            onChange={(e) => setStartsAt(e.target.value)}
+          />
+          <label>Длительность (мин)</label>
+          <input
+            type="number"
+            min={5}
+            max={480}
+            value={duration}
+            onChange={(e) => setDuration(Number(e.target.value))}
+          />
+          <button type="button" className="primary" onClick={addSlot}>
+            Создать окно
           </button>
         </div>
       </div>
       <table>
         <thead>
           <tr>
-            <th>День</th>
-            <th>Время</th>
-            <th>Слот (мин)</th>
-            <th>Активно</th>
+            <th>Начало</th>
+            <th>Конец</th>
+            <th>Статус</th>
+            <th></th>
           </tr>
         </thead>
         <tbody>
-          {rules.map((r) => (
-            <tr key={r.id}>
-              <td>{WEEKDAYS[r.weekday]}</td>
-              <td>
-                {r.start_time} — {r.end_time}
+          {slots.length === 0 && (
+            <tr>
+              <td colSpan={4} className="muted">
+                Нет созданных окон
               </td>
-              <td>{r.slot_minutes}</td>
-              <td>{r.is_active ? "да" : "нет"}</td>
+            </tr>
+          )}
+          {slots.map((s) => (
+            <tr key={s.id}>
+              <td>{new Date(s.starts_at).toLocaleString("ru-RU")}</td>
+              <td>{new Date(s.ends_at).toLocaleString("ru-RU")}</td>
+              <td>
+                <span className={`badge ${s.is_booked ? "cancelled" : "booked"}`}>
+                  {s.is_booked ? "занято" : "свободно"}
+                </span>
+              </td>
+              <td>
+                {!s.is_booked && (
+                  <button type="button" className="ghost danger" onClick={() => removeSlot(s.id)}>
+                    Удалить
+                  </button>
+                )}
+              </td>
             </tr>
           ))}
         </tbody>

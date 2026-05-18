@@ -1,8 +1,6 @@
-from datetime import time
-
 from sqlalchemy import select
 
-from app.models import Doctor, DoctorScheduleRule, Patient, User, UserRole
+from app.models import Doctor, Patient, User, UserRole
 from app.security import hash_password
 
 SEED_PASSWORD = "Password123!"
@@ -41,17 +39,6 @@ def run_seed() -> None:
         )
         db.add(doctor)
         db.flush()
-
-        for weekday in range(0, 5):
-            db.add(
-                DoctorScheduleRule(
-                    doctor_id=doctor.id,
-                    weekday=weekday,
-                    start_time=time(9, 0),
-                    end_time=time(17, 0),
-                    slot_minutes=30,
-                )
-            )
 
         reg = User(
             email="registrar@clinic.example",

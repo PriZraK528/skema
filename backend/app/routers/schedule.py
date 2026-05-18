@@ -8,18 +8,17 @@ from sqlalchemy.orm import Session
 
 from app.db import get_db
 from app.deps import get_current_user, require_roles
-from app.models import Doctor, DoctorScheduleRule, NotificationType, ScheduleException, User, UserRole
+from app.models import Doctor, DoctorAvailabilitySlot, NotificationType, User, UserRole
 from app.schemas.common import MessageResponse
-from app.schemas.schedule import (
-    FreeSlotOut,
-    ScheduleExceptionCreate,
-    ScheduleExceptionOut,
-    ScheduleRuleCreate,
-    ScheduleRuleOut,
-    ScheduleRuleUpdate,
+from app.schemas.schedule import AvailabilitySlotCreate, AvailabilitySlotOut, FreeSlotOut
+from app.services.notifications import notify_users
+from app.services.schedule import (
+    compute_free_slots,
+    create_availability_slot,
+    delete_availability_slot,
+    get_booked_ranges,
+    list_availability_slots,
 )
-from app.services.notifications import create_notification, notify_users
-from app.services.schedule import compute_free_slots
 
 router = APIRouter(tags=["schedule"])
 
@@ -29,6 +28,14 @@ def _get_doctor_or_404(db: Session, doctor_id: int) -> Doctor:
     if not doctor:
         raise HTTPException(status_code=404, detail="Doctor not found")
     return doctor
+
+
+def _resolve_doctor_id(db: Session, user: User, doctor_id: int | None) -> int:
+    if user.role == UserRole.doctor and user.doctor:
+        return user.doctor.id
+    if doctor_id is None:
+        raise HTTPException(status_code=400, detail="doctor_id required")
+    return doctor_id
 
 
 def _ensure_schedule_access(doctor: Doctor, user: User, write: bool = False) -> None:
@@ -41,116 +48,78 @@ def _ensure_schedule_access(doctor: Doctor, user: User, write: bool = False) -> 
     raise HTTPException(status_code=403, detail="Cannot modify this schedule")
 
 
-@router.get("/doctors/{doctor_id}/schedule/rules", response_model=list[ScheduleRuleOut])
-def list_schedule_rules(
-    doctor_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    _get_doctor_or_404(db, doctor_id)
-    rules = db.scalars(
-        select(DoctorScheduleRule).where(DoctorScheduleRule.doctor_id == doctor_id)
-    ).all()
-    return rules
+def _slot_to_out(slot: DoctorAvailabilitySlot, booked: list[tuple[datetime, datetime]]) -> AvailabilitySlotOut:
+    from app.services.schedule import _overlaps_booked
 
-
-@router.post(
-    "/doctors/{doctor_id}/schedule/rules",
-    response_model=ScheduleRuleOut,
-    status_code=status.HTTP_201_CREATED,
-)
-def create_schedule_rule(
-    doctor_id: int,
-    payload: ScheduleRuleCreate,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.admin, UserRole.doctor, UserRole.registrar)),
-):
-    doctor = _get_doctor_or_404(db, doctor_id)
-    _ensure_schedule_access(doctor, user, write=True)
-    existing = db.scalar(
-        select(DoctorScheduleRule).where(
-            DoctorScheduleRule.doctor_id == doctor_id,
-            DoctorScheduleRule.weekday == payload.weekday,
-        )
+    is_booked = _overlaps_booked(slot.starts_at, slot.ends_at, booked)
+    return AvailabilitySlotOut(
+        id=slot.id,
+        doctor_id=slot.doctor_id,
+        starts_at=slot.starts_at,
+        ends_at=slot.ends_at,
+        is_active=slot.is_active,
+        is_booked=is_booked,
     )
-    if existing:
-        raise HTTPException(status_code=409, detail="Rule for this weekday already exists")
-    rule = DoctorScheduleRule(doctor_id=doctor_id, **payload.model_dump())
-    db.add(rule)
-    _notify_schedule_change(db, doctor, "Добавлено правило расписания")
-    db.commit()
-    db.refresh(rule)
-    return rule
 
 
-@router.patch("/schedule/rules/{rule_id}", response_model=ScheduleRuleOut)
-def update_schedule_rule(
-    rule_id: int,
-    payload: ScheduleRuleUpdate,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.admin, UserRole.doctor, UserRole.registrar)),
-):
-    rule = db.get(DoctorScheduleRule, rule_id)
-    if not rule:
-        raise HTTPException(status_code=404, detail="Rule not found")
-    doctor = _get_doctor_or_404(db, rule.doctor_id)
-    _ensure_schedule_access(doctor, user, write=True)
-    for key, value in payload.model_dump(exclude_unset=True).items():
-        setattr(rule, key, value)
-    _notify_schedule_change(db, doctor, "Изменено правило расписания")
-    db.commit()
-    db.refresh(rule)
-    return rule
-
-
-@router.delete("/schedule/rules/{rule_id}", response_model=MessageResponse)
-def delete_schedule_rule(
-    rule_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.admin, UserRole.doctor, UserRole.registrar)),
-):
-    rule = db.get(DoctorScheduleRule, rule_id)
-    if not rule:
-        raise HTTPException(status_code=404, detail="Rule not found")
-    doctor = _get_doctor_or_404(db, rule.doctor_id)
-    _ensure_schedule_access(doctor, user, write=True)
-    db.delete(rule)
-    _notify_schedule_change(db, doctor, "Удалено правило расписания")
-    db.commit()
-    return MessageResponse(message="Rule deleted")
-
-
-@router.get("/doctors/{doctor_id}/schedule/exceptions", response_model=list[ScheduleExceptionOut])
-def list_exceptions(
+@router.get("/doctors/{doctor_id}/schedule/slots", response_model=list[AvailabilitySlotOut])
+def list_doctor_slots(
     doctor_id: int,
+    from_date: date | None = Query(default=None, alias="from"),
+    to_date: date | None = Query(default=None, alias="to"),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    """Все окна врача (включая занятые записью)."""
     _get_doctor_or_404(db, doctor_id)
-    return db.scalars(
-        select(ScheduleException).where(ScheduleException.doctor_id == doctor_id)
-    ).all()
+    slots = list_availability_slots(db, doctor_id, from_date=from_date, to_date=to_date)
+    if not slots:
+        return []
+    booked = get_booked_ranges(db, doctor_id, slots[0].starts_at, slots[-1].ends_at)
+    return [_slot_to_out(s, booked) for s in slots]
 
 
 @router.post(
-    "/doctors/{doctor_id}/schedule/exceptions",
-    response_model=ScheduleExceptionOut,
+    "/doctors/{doctor_id}/schedule/slots",
+    response_model=AvailabilitySlotOut,
     status_code=status.HTTP_201_CREATED,
 )
-def create_exception(
+def add_availability_slot(
     doctor_id: int,
-    payload: ScheduleExceptionCreate,
+    payload: AvailabilitySlotCreate,
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.admin, UserRole.doctor, UserRole.registrar)),
 ):
+    """Врач вручную открывает окно для записи."""
     doctor = _get_doctor_or_404(db, doctor_id)
     _ensure_schedule_access(doctor, user, write=True)
-    exc = ScheduleException(doctor_id=doctor_id, **payload.model_dump())
-    db.add(exc)
-    _notify_schedule_change(db, doctor, f"Исключение в расписании на {payload.exception_date}")
+
+    ends_at = payload.ends_at
+    if ends_at is None and payload.duration_minutes:
+        ends_at = payload.starts_at + timedelta(minutes=payload.duration_minutes)
+
+    slot = create_availability_slot(db, doctor, payload.starts_at, ends_at)
+    _notify_schedule_change(db, doctor, f"Добавлено окно приёма {slot.starts_at.isoformat()}")
     db.commit()
-    db.refresh(exc)
-    return exc
+    db.refresh(slot)
+    return _slot_to_out(slot, [])
+
+
+@router.delete("/schedule/slots/{slot_id}", response_model=MessageResponse)
+def remove_availability_slot(
+    slot_id: int,
+    db: Session = Depends(get_db),
+    user: User = Depends(require_roles(UserRole.admin, UserRole.doctor, UserRole.registrar)),
+):
+    slot = db.get(DoctorAvailabilitySlot, slot_id)
+    if not slot:
+        raise HTTPException(status_code=404, detail="Slot not found")
+    doctor = _get_doctor_or_404(db, slot.doctor_id)
+    _ensure_schedule_access(doctor, user, write=True)
+    delete_availability_slot(db, slot)
+    _notify_schedule_change(db, doctor, f"Удалено окно приёма {slot.starts_at.isoformat()}")
+    db.commit()
+    return MessageResponse(message="Slot deleted")
 
 
 @router.get("/doctors/{doctor_id}/slots/free", response_model=list[FreeSlotOut])
@@ -161,31 +130,25 @@ def free_slots(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
+    """Свободные окна — только те, что врач создал и которые ещё не заняты."""
     doctor = _get_doctor_or_404(db, doctor_id)
     if to_date is None:
-        to_date = from_date + timedelta(days=13)
+        to_date = from_date + timedelta(days=60)
     if to_date < from_date:
         raise HTTPException(status_code=400, detail="'to' must be >= 'from'")
-    slots = compute_free_slots(db, doctor, from_date, to_date)
+
+    slots = list_availability_slots(
+        db, doctor.id, from_date=from_date, to_date=to_date, only_free=True
+    )
     return [
-        FreeSlotOut(doctor_id=doctor_id, starts_at=s, ends_at=e) for s, e in slots
+        FreeSlotOut(
+            doctor_id=doctor_id,
+            starts_at=s.starts_at,
+            ends_at=s.ends_at,
+            slot_id=s.id,
+        )
+        for s in slots
     ]
-
-
-@router.post("/doctors/{doctor_id}/schedule/refresh", response_model=MessageResponse)
-def refresh_schedule(
-    doctor_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.admin, UserRole.doctor, UserRole.registrar)),
-):
-    """Recompute availability cache and notify patients with upcoming bookings if slots changed."""
-    doctor = _get_doctor_or_404(db, doctor_id)
-    _ensure_schedule_access(doctor, user, write=True)
-    today = datetime.now(timezone.utc).date()
-    compute_free_slots(db, doctor, today, today + timedelta(days=30))
-    _notify_schedule_change(db, doctor, "Расписание автоматически обновлено")
-    db.commit()
-    return MessageResponse(message="Schedule refreshed")
 
 
 def _notify_schedule_change(db: Session, doctor: Doctor, message: str) -> None:

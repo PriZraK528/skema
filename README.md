@@ -8,7 +8,7 @@ Fullstack CRUD-приложение: **Python (FastAPI)** + **PostgreSQL** + **R
 | Модуль | Возможности |
 |--------|-------------|
 | **Пользователи** | Регистрация, вход, refresh-токен, профиль, роли: `admin`, `doctor`, `patient`, `registrar` |
-| **Расписание** | Правила по дням недели, исключения, свободные слоты, автообновление (`POST .../schedule/refresh`) |
+| **Расписание** | Врач вручную создаёт окна приёма; без этого записаться нельзя (`POST /api/doctors/{id}/schedule/slots`) |
 | **Записи** | Запись, отмена, перенос, история, назначение врачом (`POST /api/appointments/assign`) |
 | **Уведомления** | О записи, переносе, отмене, изменении расписания; напоминания (`POST /api/notifications/reminders/run`) |
 | **API** | OpenAPI `/docs`, JSON, пагинация, query-фильтры (`q`, `status`, `from`, `to`) |
@@ -101,8 +101,9 @@ pytest tests/test_schemathesis.py  # OpenAPI fuzzing (медленнее)
 | POST | `/auth/register`, `/auth/login` | Регистрация / вход |
 | GET/PATCH | `/auth/me` | Профиль |
 | GET | `/doctors` | Список врачей (поиск `q`) |
-| GET/POST | `/doctors/{id}/schedule/rules` | Расписание |
-| GET | `/doctors/{id}/slots/free?from=&to=` | Свободные окна |
+| GET/POST | `/doctors/{id}/schedule/slots` | Окна приёма (создаёт врач) |
+| DELETE | `/schedule/slots/{id}` | Удалить свободное окно |
+| GET | `/doctors/{id}/slots/free?from=&to=` | Свободные (созданные и не занятые) |
 | GET/POST | `/appointments` | Записи, фильтры |
 | POST | `/appointments/assign` | Назначение врачом |
 | POST | `/appointments/{id}/cancel`, `.../reschedule` | Отмена / перенос |

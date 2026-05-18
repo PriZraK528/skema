@@ -1,5 +1,7 @@
 """Property-based fuzzing of API inputs (roles, schedule, auth)."""
 
+from datetime import datetime, timedelta, timezone
+
 import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
@@ -24,22 +26,10 @@ def test_register_role_rejects_unknown_strings(role: str):
 
 
 @settings(max_examples=30, deadline=None)
-@given(weekday=st.integers())
-def test_schedule_weekday_validation(weekday: int):
-    from app.schemas.schedule import ScheduleRuleCreate
-    from datetime import time
+@given(minutes=st.integers(min_value=5, max_value=480))
+def test_availability_slot_duration_validation(minutes: int):
+    from app.schemas.schedule import AvailabilitySlotCreate
 
-    if 0 <= weekday <= 6:
-        rule = ScheduleRuleCreate(
-            weekday=weekday,
-            start_time=time(9, 0),
-            end_time=time(10, 0),
-        )
-        assert rule.weekday == weekday
-    else:
-        with pytest.raises(Exception):
-            ScheduleRuleCreate(
-                weekday=weekday,
-                start_time=time(9, 0),
-                end_time=time(10, 0),
-            )
+    start = datetime.now(timezone.utc) + timedelta(days=2)
+    slot = AvailabilitySlotCreate(starts_at=start, duration_minutes=minutes)
+    assert slot.duration_minutes == minutes
