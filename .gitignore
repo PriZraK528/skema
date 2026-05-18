@@ -18,6 +18,7 @@ node_modules/
 dist/
 .vite/
 .eslintcache
+*.tsbuildinfo
 
 .env
 .env.*

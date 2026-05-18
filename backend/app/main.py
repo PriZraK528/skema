@@ -1,20 +1,12 @@
 import logging
-from contextlib import asynccontextmanager
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
 from app.routers import appointments, auth, doctors, notifications, schedule, users
 from app.settings import settings
-from app.startup import init_db
 
 logging.basicConfig(level=logging.INFO)
-
-
-@asynccontextmanager
-async def lifespan(_app: FastAPI):
-    init_db()
-    yield
 
 
 def create_app() -> FastAPI:
@@ -22,7 +14,6 @@ def create_app() -> FastAPI:
         title="SKEMA API",
         version="1.0.0",
         description="REST API для управления онлайн-записями пациентов",
-        lifespan=lifespan,
     )
 
     app.add_middleware(

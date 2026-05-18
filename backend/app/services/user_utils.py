@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from app.models import Doctor, Patient, User
+from app.models import User
 from app.schemas.common import UserPublic
 
 
@@ -20,11 +20,3 @@ def user_to_public(user: User) -> UserPublic:
         phone=phone,
         created_at=user.created_at,
     )
-
-
-def get_patient_for_user(user: User) -> Patient | None:
-    return user.patient
-
-
-def get_doctor_for_user(user: User) -> Doctor | None:
-    return user.doctor

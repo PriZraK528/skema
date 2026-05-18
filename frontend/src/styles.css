@@ -56,18 +56,51 @@ a:hover {
 }
 
 .layout {
-  display: grid;
-  grid-template-columns: 240px 1fr;
+  display: flex;
+  align-items: flex-start;
   min-height: 100vh;
 }
 
 .sidebar {
+  position: sticky;
+  top: 0;
+  flex-shrink: 0;
+  width: 240px;
+  height: 100vh;
   background: var(--surface);
   border-right: 1px solid var(--border);
   padding: 1.5rem 1rem;
   display: flex;
   flex-direction: column;
-  gap: 0.5rem;
+  overflow: hidden;
+}
+
+.sidebar-header {
+  flex-shrink: 0;
+}
+
+.sidebar-header .brand-sub {
+  margin-bottom: 1rem;
+}
+
+.sidebar-nav {
+  display: flex;
+  flex-direction: column;
+  gap: 0.25rem;
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.sidebar-footer {
+  flex-shrink: 0;
+  padding-top: 0.75rem;
+  margin-top: auto;
+  border-top: 1px solid var(--border);
+}
+
+.nav-btn-logout {
+  width: 100%;
 }
 
 .nav-btn {
@@ -95,6 +128,8 @@ a:hover {
 }
 
 .main {
+  flex: 1;
+  min-width: 0;
   padding: 1.5rem 2rem;
   max-width: 1100px;
 }
@@ -273,17 +308,64 @@ tr:hover td {
   font-size: 0.85rem;
 }
 
+.profile-meta {
+  display: flex;
+  align-items: center;
+  gap: 0.35rem;
+  flex-wrap: wrap;
+}
+
+.notification-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+}
+
+.notification-list li {
+  padding: 0.75rem 0;
+  border-bottom: 1px solid var(--border);
+}
+
+.notification-read {
+  opacity: 0.6;
+}
+
+.notification-time {
+  font-size: 0.8rem;
+}
+
+.reschedule-inline {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  align-items: center;
+}
+
+.reschedule-inline input {
+  width: auto;
+  min-width: 12rem;
+  margin-bottom: 0;
+}
+
 @media (max-width: 800px) {
   .layout {
-    grid-template-columns: 1fr;
+    flex-direction: column;
   }
   .sidebar {
+    position: relative;
+    width: 100%;
+    height: auto;
+    max-height: none;
+    flex-direction: column;
+  }
+  .sidebar-nav {
     flex-direction: row;
     flex-wrap: wrap;
-    align-items: center;
+    overflow: visible;
   }
-  .brand {
+  .sidebar-footer {
     width: 100%;
+    margin-top: 0.5rem;
   }
   .grid2 {
     grid-template-columns: 1fr;

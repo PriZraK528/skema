@@ -1,42 +1,52 @@
 # SKEMA — сервис управления онлайн-записями пациентов
 
-Fullstack CRUD-приложение: **Python (FastAPI)** + **PostgreSQL** + **React (Vite/TypeScript)**.  
-Реализованы регистрация/авторизация (JWT), ролевая модель, расписание врачей, онлайн-запись, уведомления, REST API с JSON, фильтрация и поиск.
+Fullstack CRUD: **FastAPI** + **PostgreSQL** + **React (Vite/TypeScript)**.  
+JWT, роли, ручное расписание врача, онлайн-запись, уведомления, REST API с фильтрацией и поиском.
 
 ## Функциональность
 
 | Модуль | Возможности |
 |--------|-------------|
-| **Пользователи** | Регистрация, вход, refresh-токен, профиль, роли: `admin`, `doctor`, `patient`, `registrar` |
-| **Расписание** | Врач вручную создаёт окна приёма; без этого записаться нельзя (`POST /api/doctors/{id}/schedule/slots`) |
-| **Записи** | Запись, отмена, перенос, история, назначение врачом (`POST /api/appointments/assign`) |
-| **Уведомления** | О записи, переносе, отмене, изменении расписания; напоминания (`POST /api/notifications/reminders/run`) |
-| **API** | OpenAPI `/docs`, JSON, пагинация, query-фильтры (`q`, `status`, `from`, `to`) |
+| **Пользователи** | Регистрация, вход, refresh-токен, профиль; роли: `admin`, `doctor`, `patient`, `registrar` |
+| **Расписание** | Врач создаёт окна приёма вручную (`POST /api/doctors/{id}/schedule/slots`); без окон запись недоступна |
+| **Записи** | Запись, отмена, перенос, назначение врачом (`POST /api/appointments/assign`) |
+| **Уведомления** | О записи, переносе, отмене; cron-напоминания (`POST /api/notifications/reminders/run`) |
+| **API** | OpenAPI `/docs`, JSON, пагинация, фильтры (`q`, `status`, `from`, `to`) |
 
 ## Структура проекта
 
 ```
 skema/
-├── backend/                    # FastAPI
+├── docker-compose.yml          # db + backend + frontend
+├── backend/
+│   ├── entrypoint.sh           # миграции, seed, запуск API (Docker)
 │   ├── app/
-│   │   ├── main.py             # точка входа, роутеры
-│   │   ├── models.py           # SQLAlchemy-модели
-│   │   ├── security.py         # JWT, bcrypt
-│   │   ├── deps.py             # авторизация, RBAC
-│   │   ├── seed.py             # тестовые данные
-│   │   ├── routers/            # REST endpoints
-│   │   ├── schemas/            # Pydantic DTO
-│   │   └── services/           # бизнес-логика
-│   ├── alembic/                # миграции БД
-│   ├── tests/                  # pytest, hypothesis, schemathesis
+│   │   ├── main.py
+│   │   ├── models.py
+│   │   ├── security.py, deps.py, seed.py
+│   │   ├── routers/
+│   │   ├── schemas/
+│   │   └── services/
+│   ├── alembic/
+│   ├── tests/
 │   ├── Dockerfile
 │   └── pyproject.toml
-├── frontend/                   # React SPA
-│   ├── src/App.tsx
-│   ├── src/api.ts
-│   └── Dockerfile
-├── docker-compose.yml
-└── README.md
+└── frontend/
+    ├── src/
+    │   ├── App.tsx             # маршрутизация вкладок и auth
+    │   ├── api.ts
+    │   ├── styles.css
+    │   └── components/
+    │       ├── auth/AuthScreen.tsx
+    │       ├── appointments/AppointmentsPanel.tsx
+    │       ├── schedule/SchedulePanel.tsx
+    │       ├── notifications/NotificationsPanel.tsx
+    │       ├── profile/ProfilePanel.tsx
+    │       ├── users/UsersPanel.tsx
+    │       ├── layout/AppLayout.tsx, Sidebar.tsx
+    │       └── ui/StatusBadge.tsx, RoleBadge.tsx
+    ├── Dockerfile
+    └── package.json
 ```
 
 ## Запуск (Docker)
@@ -48,10 +58,7 @@ skema/
 docker compose up --build
 ```
 
-- API: http://localhost:8000 (Swagger: http://localhost:8000/docs)
-- UI: http://localhost:5173
-
-### Тестовые учётные записи (пароль для всех: `Password123!`)
+### Демо-аккаунты (пароль: `Password123!`)
 
 | Email | Роль |
 |-------|------|
@@ -60,39 +67,16 @@ docker compose up --build
 | registrar@clinic.example | registrar |
 | patient@clinic.example | patient |
 
-## Локальная разработка
+## Тестирование
 
-**Backend:**
+В контейнере backend или локально с установленными зависимостями:
 
 ```bash
 cd backend
 pip install -e ".[dev]"
-# PostgreSQL на localhost:5432 (см. docker-compose)
-alembic upgrade head
-python -c "from app.seed import run_seed; run_seed()"
-uvicorn app.main:app --reload
+pytest -q
+pytest tests/test_schemathesis.py -q   # OpenAPI fuzzing, дольше
 ```
-
-**Frontend:**
-
-```bash
-cd frontend
-npm install
-npm run dev
-```
-
-Переменные окружения (12-factor): `DATABASE_URL`, `JWT_SECRET_KEY`, `CORS_ORIGINS`, `SEED_ON_STARTUP`.
-
-## Тестирование
-
-```bash
-cd backend
-pytest -q                          # unit + роли + hypothesis
-pytest tests/test_schemathesis.py  # OpenAPI fuzzing (медленнее)
-```
-
-- Валидация ролей: отклонение `admin` при саморегистрации, неверных строк роли.
-- Фаззинг: Hypothesis (схемы) + Schemathesis (HTTP по OpenAPI).
 
 ## Основные API (префикс `/api`)
 
@@ -100,11 +84,11 @@ pytest tests/test_schemathesis.py  # OpenAPI fuzzing (медленнее)
 |-------|------|----------|
 | POST | `/auth/register`, `/auth/login` | Регистрация / вход |
 | GET/PATCH | `/auth/me` | Профиль |
-| GET | `/doctors` | Список врачей (поиск `q`) |
-| GET/POST | `/doctors/{id}/schedule/slots` | Окна приёма (создаёт врач) |
+| GET | `/doctors` | Список врачей (`q`) |
+| GET/POST | `/doctors/{id}/schedule/slots` | Окна приёма |
 | DELETE | `/schedule/slots/{id}` | Удалить свободное окно |
-| GET | `/doctors/{id}/slots/free?from=&to=` | Свободные (созданные и не занятые) |
-| GET/POST | `/appointments` | Записи, фильтры |
+| GET | `/doctors/{id}/slots/free?from=&to=` | Свободные слоты |
+| GET/POST | `/appointments` | Записи |
 | POST | `/appointments/assign` | Назначение врачом |
 | POST | `/appointments/{id}/cancel`, `.../reschedule` | Отмена / перенос |
 | GET | `/notifications` | Уведомления |

@@ -1,5 +1,37 @@
 const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
 
+const API_ERRORS: Record<string, string> = {
+  "Not authenticated": "Требуется авторизация",
+  "Invalid token": "Недействительный токен",
+  "Invalid credentials": "Неверный email или пароль",
+  "Insufficient permissions": "Недостаточно прав",
+  "Doctor not found": "Врач не найден",
+  "Patient not found": "Пациент не найден",
+  "Appointment not found": "Запись не найдена",
+  "Selected time slot is not available": "Выбранное время недоступно для записи",
+  "Cannot create slots in the past": "Нельзя создать окно в прошлом",
+  "Slot at this time already exists": "Окно на это время уже существует",
+  "Overlaps with another availability slot": "Пересечение с другим окном",
+  "Cannot delete slot with an active appointment": "Нельзя удалить окно с активной записью",
+  "Email already registered": "Email уже зарегистрирован",
+  "Access denied": "Доступ запрещён",
+};
+
+function errorMessage(detail: unknown): string {
+  if (detail == null) return "Произошла ошибка";
+  if (typeof detail === "string") return API_ERRORS[detail] ?? detail;
+  if (Array.isArray(detail)) {
+    return detail
+      .map((item) =>
+        typeof item === "object" && item !== null && "msg" in item
+          ? errorMessage((item as { msg: string }).msg)
+          : errorMessage(item),
+      )
+      .join("; ");
+  }
+  return String(detail);
+}
+
 export type UserRole = "admin" | "doctor" | "patient" | "registrar";
 
 export interface User {
@@ -89,7 +121,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (!res.ok) {
     const body = await res.json().catch(() => ({}));
-    throw new Error(body.detail?.toString?.() ?? body.detail ?? res.statusText);
+    throw new Error(errorMessage(body.detail) || res.statusText);
   }
   if (res.status === 204) return undefined as T;
   return res.json();
@@ -126,7 +158,6 @@ export const api = {
     request<{ message: string }>(`/api/schedule/slots/${slotId}`, { method: "DELETE" }),
   appointments: (params?: string) =>
     request<Paginated<Appointment>>(`/api/appointments?limit=50${params ?? ""}`),
-  history: () => request<Paginated<Appointment>>("/api/appointments/history?limit=50"),
   book: (data: Record<string, unknown>) =>
     request<Appointment>("/api/appointments", {
       method: "POST",
