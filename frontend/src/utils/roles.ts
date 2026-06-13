@@ -1,5 +1,9 @@
 import type { User } from "../api";
 
+export function isDoctor(user: User): boolean {
+  return user.role === "doctor";
+}
+
 export function isStaff(user: User): boolean {
   return user.role === "doctor" || user.role === "admin";
 }

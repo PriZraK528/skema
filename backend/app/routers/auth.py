@@ -120,6 +120,8 @@ def update_profile(
         user.phone = payload.phone
         if user.patient:
             user.patient.phone = payload.phone
+    if payload.specialization is not None and user.doctor:
+        user.doctor.specialization = payload.specialization.strip()
     if payload.password:
         user.password_hash = hash_password(payload.password)
     db.commit()

@@ -12,11 +12,13 @@ def user_to_public(user: User) -> UserPublic:
         phone = phone or user.patient.phone
     elif user.doctor:
         full_name = full_name or user.doctor.full_name
+    specialization = user.doctor.specialization if user.doctor else None
     return UserPublic(
         id=user.id,
         email=user.email,
         role=user.role.value,
         full_name=full_name,
         phone=phone,
+        specialization=specialization,
         created_at=user.created_at,
     )

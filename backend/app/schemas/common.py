@@ -35,4 +35,5 @@ class UserPublic(ORMModel):
     role: str
     full_name: str | None = None
     phone: str | None = None
+    specialization: str | None = None
     created_at: datetime | None = None

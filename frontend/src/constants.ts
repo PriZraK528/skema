@@ -1,7 +1,7 @@
 export const API_BASE_DEFAULT = "http://localhost:8000";
 
 export const DEFAULT_LIST_LIMIT = 50;
-export const UNREAD_POLL_INTERVAL_MS = 30_000;
+export const UNREAD_POLL_INTERVAL_MS = 10_000;
 export const SLOT_LOOKAHEAD_DAYS = 14;
 export const MS_PER_DAY = 86_400_000;
 export const DEFAULT_SLOT_DURATION_MINUTES = 30;

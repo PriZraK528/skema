@@ -2,14 +2,15 @@ import { useCallback, useEffect, useState } from "react";
 import { api, Appointment, Doctor, FreeSlot, PatientBrief, User } from "../../api";
 import { GENERIC_ERROR_RU, SLOT_LOOKAHEAD_DAYS } from "../../constants";
 import { addDaysIso, formatDateTime, todayIsoDate } from "../../utils/datetime";
-import { isStaff } from "../../utils/roles";
+import { isDoctor, isStaff } from "../../utils/roles";
 import { StatusBadge } from "../ui/StatusBadge";
 
 interface AppointmentsPanelProps {
   user: User;
+  onActivity?: () => void;
 }
 
-export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
+export function AppointmentsPanel({ user, onActivity }: AppointmentsPanelProps) {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [patients, setPatients] = useState<PatientBrief[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
@@ -22,6 +23,8 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
   const [search, setSearch] = useState("");
 
   const staffView = isStaff(user);
+  const doctorView = isDoctor(user);
+  const ownDoctor = doctors.find((d) => d.user_id === user.id);
 
   const load = useCallback(async () => {
     const [d, a] = await Promise.all([
@@ -30,8 +33,13 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
     ]);
     setDoctors(d.items);
     setAppointments(a.items);
-    if (d.items.length) setDoctorId((prev) => d.items.some((x) => x.id === prev) ? prev : d.items[0].id);
-  }, [search]);
+    if (doctorView) {
+      const mine = d.items.find((x) => x.user_id === user.id);
+      if (mine) setDoctorId(mine.id);
+    } else if (d.items.length) {
+      setDoctorId((prev) => (d.items.some((x) => x.id === prev) ? prev : d.items[0].id));
+    }
+  }, [search, doctorView, user.id]);
 
   useEffect(() => {
     load().catch(console.error);
@@ -45,7 +53,8 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
   const loadSlots = async () => {
     const from = todayIsoDate();
     const to = addDaysIso(new Date(), SLOT_LOOKAHEAD_DAYS);
-    const s = await api.freeSlots(doctorId, from, to);
+    const id = doctorView && ownDoctor ? ownDoctor.id : doctorId;
+    const s = await api.freeSlots(id, from, to);
     setSlots(s);
     if (s.length) setSlot(s[0].starts_at);
     else setSlot("");
@@ -54,21 +63,33 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
   const book = async () => {
     setError("");
     try {
+      const id = doctorView && ownDoctor ? ownDoctor.id : doctorId;
       if (staffView) {
         await api.assign({
           patient_name: patientName.trim(),
-          doctor_id: doctorId,
+          doctor_id: id,
           starts_at: slot,
           note,
         });
       } else {
-        await api.book({ doctor_id: doctorId, starts_at: slot, note });
+        await api.book({ doctor_id: id, starts_at: slot, note });
       }
       setPatientName("");
       setNote("");
       await load();
+      onActivity?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : GENERIC_ERROR_RU);
+    }
+  };
+
+  const cancel = async (id: number) => {
+    try {
+      await api.cancel(id);
+      await load();
+      onActivity?.();
+    } catch (e) {
+      setError(String(e));
     }
   };
 
@@ -79,24 +100,33 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
         {error && <p className="error">{error}</p>}
         <div className="grid2">
           <div>
-            <label>Врач</label>
-            <select
-              value={doctorId}
-              onChange={(e) => setDoctorId(Number(e.target.value))}
-              disabled={user.role === "doctor"}
-            >
-              {doctors.map((d) => (
-                <option key={d.id} value={d.id}>
-                  {d.full_name} — {d.specialization}
-                </option>
-              ))}
-            </select>
+            {doctorView && ownDoctor ? (
+              <>
+                <label>Врач</label>
+                <p className="profile-meta">
+                  {ownDoctor.full_name} — {ownDoctor.specialization}
+                </p>
+              </>
+            ) : (
+              <>
+                <label>Врач</label>
+                <select value={doctorId} onChange={(e) => setDoctorId(Number(e.target.value))}>
+                  {doctors.map((d) => (
+                    <option key={d.id} value={d.id}>
+                      {d.full_name} — {d.specialization}
+                    </option>
+                  ))}
+                </select>
+              </>
+            )}
             <button type="button" className="ghost" onClick={loadSlots}>
               Обновить свободные окна
             </button>
             {slots.length === 0 && (
               <p className="muted">
-                Нет свободных окон — врач должен добавить их в разделе «Расписание».
+                {doctorView
+                  ? "Нет свободных окон — добавьте их в разделе «Расписание»."
+                  : "Нет свободных окон — врач должен добавить их в разделе «Расписание»."}
               </p>
             )}
             <label>Слот</label>
@@ -125,7 +155,12 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
             )}
             <label>Комментарий</label>
             <input value={note} onChange={(e) => setNote(e.target.value)} />
-            <button type="button" className="primary" onClick={book} disabled={!slot || (staffView && !patientName.trim())}>
+            <button
+              type="button"
+              className="primary"
+              onClick={book}
+              disabled={!slot || (staffView && !patientName.trim())}
+            >
               {user.role === "patient" ? "Записаться" : "Назначить приём"}
             </button>
           </div>
@@ -147,7 +182,7 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
             <tr>
               <th>Дата</th>
               {staffView && <th>Пациент</th>}
-              <th>Врач</th>
+              {!doctorView && <th>Врач</th>}
               <th>Статус</th>
               <th></th>
             </tr>
@@ -157,19 +192,17 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
               <tr key={a.id}>
                 <td>{formatDateTime(a.starts_at)}</td>
                 {staffView && <td>{a.patient_name ?? "—"}</td>}
-                <td>
-                  {a.doctor_name} ({a.specialization})
-                </td>
+                {!doctorView && (
+                  <td>
+                    {a.doctor_name} ({a.specialization})
+                  </td>
+                )}
                 <td>
                   <StatusBadge status={a.status} />
                 </td>
                 <td>
                   {a.status === "booked" && (
-                    <button
-                      type="button"
-                      className="ghost danger"
-                      onClick={() => api.cancel(a.id).then(load).catch((e) => setError(String(e)))}
-                    >
+                    <button type="button" className="ghost danger" onClick={() => cancel(a.id)}>
                       Отменить
                     </button>
                   )}

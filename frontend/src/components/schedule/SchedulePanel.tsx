@@ -12,9 +12,10 @@ import { isAdmin } from "../../utils/roles";
 
 interface SchedulePanelProps {
   user: User;
+  onActivity?: () => void;
 }
 
-export function SchedulePanel({ user }: SchedulePanelProps) {
+export function SchedulePanel({ user, onActivity }: SchedulePanelProps) {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
   const [doctorId, setDoctorId] = useState(1);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
@@ -61,6 +62,7 @@ export function SchedulePanel({ user }: SchedulePanelProps) {
       });
       setMsg("Окно для записи создано");
       await loadSlots(doctorId);
+      onActivity?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : GENERIC_ERROR_RU);
     }
@@ -72,6 +74,7 @@ export function SchedulePanel({ user }: SchedulePanelProps) {
       await api.deleteAvailabilitySlot(id);
       setMsg("Окно удалено");
       await loadSlots(doctorId);
+      onActivity?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : GENERIC_ERROR_RU);
     }

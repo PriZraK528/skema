@@ -29,8 +29,15 @@ export default function App() {
   useEffect(() => {
     if (!user) return;
     refreshUnreadCount();
-    const id = window.setInterval(refreshUnreadCount, UNREAD_POLL_INTERVAL_MS);
-    return () => window.clearInterval(id);
+    const intervalId = window.setInterval(refreshUnreadCount, UNREAD_POLL_INTERVAL_MS);
+    const onFocus = () => refreshUnreadCount();
+    window.addEventListener("focus", onFocus);
+    document.addEventListener("visibilitychange", onFocus);
+    return () => {
+      window.clearInterval(intervalId);
+      window.removeEventListener("focus", onFocus);
+      document.removeEventListener("visibilitychange", onFocus);
+    };
   }, [user, refreshUnreadCount]);
 
   const onAuth = (u: User, access: string, refresh: string) => {
@@ -59,8 +66,12 @@ export default function App() {
       onTabChange={setTab}
       onLogout={logout}
     >
-      {tab === "appointments" && <AppointmentsPanel user={user} />}
-      {tab === "schedule" && canSchedule && <SchedulePanel user={user} />}
+      {tab === "appointments" && (
+        <AppointmentsPanel user={user} onActivity={refreshUnreadCount} />
+      )}
+      {tab === "schedule" && canSchedule && (
+        <SchedulePanel user={user} onActivity={refreshUnreadCount} />
+      )}
       {tab === "notifications" && (
         <NotificationsPanel onUnreadChange={refreshUnreadCount} />
       )}

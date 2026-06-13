@@ -31,6 +31,7 @@ export interface User {
   role: UserRole;
   full_name?: string;
   phone?: string;
+  specialization?: string;
 }
 
 export interface AuthResponse {

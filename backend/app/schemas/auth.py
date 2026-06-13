@@ -50,3 +50,4 @@ class ProfileUpdate(BaseModel):
     full_name: str | None = Field(default=None, min_length=2, max_length=200)
     phone: str | None = Field(default=None, min_length=5, max_length=32)
     password: str | None = Field(default=None, min_length=MIN_PASSWORD_LENGTH, max_length=128)
+    specialization: str | None = Field(default=None, min_length=2, max_length=200)
