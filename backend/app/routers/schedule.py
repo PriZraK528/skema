@@ -23,6 +23,7 @@ from app.services.schedule import (
     get_booked_ranges,
     list_availability_slots,
 )
+from app.utils.formatting import format_dt_ru
 
 router = APIRouter(tags=["schedule"])
 
@@ -95,7 +96,7 @@ def add_availability_slot(
         ends_at = payload.starts_at + timedelta(minutes=payload.duration_minutes)
 
     slot = create_availability_slot(db, doctor, payload.starts_at, ends_at)
-    _notify_schedule_change(db, doctor, f"Добавлено окно приёма {slot.starts_at.isoformat()}")
+    _notify_schedule_change(db, doctor, f"Добавлено окно приёма {format_dt_ru(slot.starts_at)}")
     db.commit()
     db.refresh(slot)
     return _slot_to_out(slot, [])
@@ -113,7 +114,7 @@ def remove_availability_slot(
     doctor = _get_doctor_or_404(db, slot.doctor_id)
     _ensure_schedule_access(doctor, user, write=True)
     delete_availability_slot(db, slot)
-    _notify_schedule_change(db, doctor, f"Удалено окно приёма {slot.starts_at.isoformat()}")
+    _notify_schedule_change(db, doctor, f"Удалено окно приёма {format_dt_ru(slot.starts_at)}")
     db.commit()
     return MessageResponse(message="Slot deleted")
 

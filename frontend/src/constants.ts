@@ -12,6 +12,13 @@ export const OTHER_SPECIALIZATION = "__other__";
 export const NAV_BADGE_MAX = 99;
 export const GENERIC_ERROR_RU = "Произошла ошибка";
 
+export const MIN_PASSWORD_LENGTH = 8;
+export const MAX_PASSWORD_LENGTH = 128;
+export const MIN_FULL_NAME_LENGTH = 2;
+export const MAX_FULL_NAME_LENGTH = 200;
+export const MAX_NOTE_LENGTH = 500;
+export const PHONE_ERROR_RU = "Телефон: укажите номер в формате +7XXXXXXXXXX";
+
 export const SEED_PATIENT_EMAIL = "patient@clinic.example";
 export const SEED_PASSWORD = "Password123!";
 
@@ -51,8 +58,6 @@ export const API_ERRORS: Record<string, string> = {
   "Access denied": "Доступ запрещён",
   "Multiple patients match this name": "Найдено несколько пациентов с таким именем",
   "patient_name is required": "Укажите ФИО пациента",
-  "specialization is required for doctors": "Укажите специальность",
-  "clinic_key is required for doctors": "Укажите ключ клиники",
   "Patient profile missing": "Профиль пациента не найден",
   "Cannot book for another patient": "Нельзя записать другого пациента",
   "Doctor can only use own schedule when assigning": "Врач может назначать только в своём расписании",

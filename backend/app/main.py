@@ -1,10 +1,13 @@
 import logging
 
 from fastapi import FastAPI
+from fastapi.exceptions import RequestValidationError
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import JSONResponse
 
 from app.routers import appointments, auth, doctors, notifications, patients, schedule, users
 from app.settings import settings
+from app.validation_errors import translate_validation_error
 
 logging.basicConfig(level=logging.INFO)
 
@@ -31,6 +34,11 @@ def create_app() -> FastAPI:
     app.include_router(schedule.router, prefix="/api")
     app.include_router(appointments.router, prefix="/api")
     app.include_router(notifications.router, prefix="/api")
+
+    @app.exception_handler(RequestValidationError)
+    async def validation_exception_handler(_request, exc: RequestValidationError):
+        messages = [translate_validation_error(err) for err in exc.errors()]
+        return JSONResponse(status_code=422, content={"detail": "; ".join(messages)})
 
     @app.get("/health")
     def health() -> dict:

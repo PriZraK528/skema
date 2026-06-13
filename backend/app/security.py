@@ -2,7 +2,7 @@ from datetime import datetime, timedelta, timezone
 from typing import Any
 
 import bcrypt
-from jose import JWTError, jwt
+from jose import jwt
 
 from app.constants import JWT_ALGORITHM, TOKEN_TYPE_ACCESS, TOKEN_TYPE_REFRESH
 from app.settings import settings

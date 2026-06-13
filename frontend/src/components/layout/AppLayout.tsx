@@ -7,7 +7,6 @@ interface AppLayoutProps {
   tab: Tab;
   unreadCount: number;
   onTabChange: (tab: Tab) => void;
-  onLogout: () => void;
   children: ReactNode;
 }
 
@@ -16,7 +15,6 @@ export function AppLayout({
   tab,
   unreadCount,
   onTabChange,
-  onLogout,
   children,
 }: AppLayoutProps) {
   return (
@@ -26,7 +24,6 @@ export function AppLayout({
         user={user}
         unreadCount={unreadCount}
         onTabChange={onTabChange}
-        onLogout={onLogout}
       />
       <main className="main">{children}</main>
     </div>

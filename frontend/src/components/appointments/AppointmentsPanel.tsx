@@ -1,8 +1,15 @@
-import { useCallback, useEffect, useState } from "react";
+import { useCallback, useEffect, useMemo, useState } from "react";
 import { api, Appointment, Doctor, FreeSlot, PatientBrief, User } from "../../api";
 import { GENERIC_ERROR_RU, SLOT_LOOKAHEAD_DAYS } from "../../constants";
 import { addDaysIso, formatDateTime, todayIsoDate } from "../../utils/datetime";
-import { isDoctor, isStaff } from "../../utils/roles";
+import {
+  doctorOptions,
+  patientOptions as buildPatientOptions,
+  slotOptions,
+} from "../../utils/pickerOptions";
+import { isAdmin, isDoctor, isStaff } from "../../utils/roles";
+import { validateBookForm } from "../../utils/validation";
+import { OptionPicker } from "../ui/OptionPicker";
 import { StatusBadge } from "../ui/StatusBadge";
 
 interface AppointmentsPanelProps {
@@ -21,10 +28,20 @@ export function AppointmentsPanel({ user, onActivity }: AppointmentsPanelProps) 
   const [patientName, setPatientName] = useState("");
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
+  const [slotsLoading, setSlotsLoading] = useState(false);
 
   const staffView = isStaff(user);
   const doctorView = isDoctor(user);
+  const adminView = isAdmin(user);
   const ownDoctor = doctors.find((d) => d.user_id === user.id);
+  const activeDoctorId = doctorView && ownDoctor ? ownDoctor.id : doctorId;
+
+  const doctorPickerOptions = useMemo(() => doctorOptions(doctors), [doctors]);
+  const slotPickerOptions = useMemo(() => slotOptions(slots), [slots]);
+  const patientPickerOptions = useMemo(
+    () => buildPatientOptions(patients.map((p) => p.full_name)),
+    [patients],
+  );
 
   const load = useCallback(async () => {
     const [d, a] = await Promise.all([
@@ -50,33 +67,60 @@ export function AppointmentsPanel({ user, onActivity }: AppointmentsPanelProps) 
     api.patients().then(setPatients).catch(console.error);
   }, [staffView]);
 
-  const loadSlots = async () => {
-    const from = todayIsoDate();
-    const to = addDaysIso(new Date(), SLOT_LOOKAHEAD_DAYS);
-    const id = doctorView && ownDoctor ? ownDoctor.id : doctorId;
-    const s = await api.freeSlots(id, from, to);
-    setSlots(s);
-    if (s.length) setSlot(s[0].starts_at);
-    else setSlot("");
-  };
+  const loadSlots = useCallback(async () => {
+    if (!activeDoctorId) {
+      setSlots([]);
+      setSlot("");
+      return;
+    }
+    setSlotsLoading(true);
+    try {
+      const from = todayIsoDate();
+      const to = addDaysIso(new Date(), SLOT_LOOKAHEAD_DAYS);
+      const s = await api.freeSlots(activeDoctorId, from, to);
+      setSlots(s);
+      if (s.length) setSlot(s[0].starts_at);
+      else setSlot("");
+    } catch (e) {
+      console.error(e);
+      setSlots([]);
+      setSlot("");
+    } finally {
+      setSlotsLoading(false);
+    }
+  }, [activeDoctorId]);
+
+  useEffect(() => {
+    loadSlots().catch(console.error);
+  }, [loadSlots]);
 
   const book = async () => {
     setError("");
+    const validationError = validateBookForm({
+      slot,
+      note,
+      patientName,
+      staffView,
+    });
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     try {
-      const id = doctorView && ownDoctor ? ownDoctor.id : doctorId;
       if (staffView) {
         await api.assign({
           patient_name: patientName.trim(),
-          doctor_id: id,
+          doctor_id: activeDoctorId,
           starts_at: slot,
           note,
         });
       } else {
-        await api.book({ doctor_id: id, starts_at: slot, note });
+        await api.book({ doctor_id: activeDoctorId, starts_at: slot, note });
       }
       setPatientName("");
       setNote("");
       await load();
+      await loadSlots();
       onActivity?.();
     } catch (e) {
       setError(e instanceof Error ? e.message : GENERIC_ERROR_RU);
@@ -87,87 +131,76 @@ export function AppointmentsPanel({ user, onActivity }: AppointmentsPanelProps) 
     try {
       await api.cancel(id);
       await load();
+      await loadSlots();
       onActivity?.();
     } catch (e) {
-      setError(String(e));
+      setError(e instanceof Error ? e.message : GENERIC_ERROR_RU);
     }
   };
+
+  const listTitle = adminView ? "Общие записи" : "Мои записи";
 
   return (
     <>
       <div className="card">
         <h2>Онлайн-запись</h2>
         {error && <p className="error">{error}</p>}
-        <div className="grid2">
-          <div>
-            {doctorView && ownDoctor ? (
-              <>
-                <label>Врач</label>
-                <p className="profile-meta">
-                  {ownDoctor.full_name} — {ownDoctor.specialization}
-                </p>
-              </>
-            ) : (
-              <>
-                <label>Врач</label>
-                <select value={doctorId} onChange={(e) => setDoctorId(Number(e.target.value))}>
-                  {doctors.map((d) => (
-                    <option key={d.id} value={d.id}>
-                      {d.full_name} — {d.specialization}
-                    </option>
-                  ))}
-                </select>
-              </>
-            )}
-            <button type="button" className="ghost" onClick={loadSlots}>
-              Обновить свободные окна
-            </button>
-            {slots.length === 0 && (
-              <p className="muted">
-                {doctorView
-                  ? "Нет свободных окон — добавьте их в разделе «Расписание»."
-                  : "Нет свободных окон — врач должен добавить их в разделе «Расписание»."}
-              </p>
-            )}
-            <label>Слот</label>
-            <select value={slot} onChange={(e) => setSlot(e.target.value)} disabled={!slots.length}>
-              {slots.map((s) => (
-                <option key={s.starts_at} value={s.starts_at}>
-                  {formatDateTime(s.starts_at)}
-                </option>
-              ))}
-            </select>
-            {staffView && (
-              <>
-                <label>ФИО пациента</label>
-                <input
-                  list="patients-list"
-                  value={patientName}
-                  onChange={(e) => setPatientName(e.target.value)}
-                  placeholder="Например, Петров Пётр"
-                />
-                <datalist id="patients-list">
-                  {patients.map((p) => (
-                    <option key={p.id} value={p.full_name} />
-                  ))}
-                </datalist>
-              </>
-            )}
-            <label>Комментарий</label>
-            <input value={note} onChange={(e) => setNote(e.target.value)} />
-            <button
-              type="button"
-              className="primary"
-              onClick={book}
-              disabled={!slot || (staffView && !patientName.trim())}
-            >
-              {user.role === "patient" ? "Записаться" : "Назначить приём"}
-            </button>
-          </div>
+        <div className="form-stack">
+          {!doctorView && (
+            <>
+              <label>Врач</label>
+              <OptionPicker
+                options={doctorPickerOptions}
+                value={String(doctorId)}
+                onChange={(id) => setDoctorId(Number(id))}
+                placeholder="Выберите врача"
+              />
+            </>
+          )}
+          {slotsLoading && <p className="muted">Загрузка свободных окон…</p>}
+          {!slotsLoading && slots.length === 0 && (
+            <p className="muted">
+              {doctorView
+                ? "Нет свободных окон — добавьте их в разделе «Расписание»."
+                : "Нет свободных окон — врач должен добавить их в разделе «Расписание»."}
+            </p>
+          )}
+          <label>Слот</label>
+          <OptionPicker
+            options={slotPickerOptions}
+            value={slot}
+            onChange={setSlot}
+            placeholder="Выберите время"
+            disabled={!slots.length}
+            emptyHint="Нет свободных окон"
+          />
+          {staffView && (
+            <>
+              <label>ФИО пациента</label>
+              <OptionPicker
+                options={patientPickerOptions}
+                value={patientName}
+                onChange={setPatientName}
+                allowCustom
+                placeholder="Например, Петров Пётр"
+                emptyHint="Пациент не найден — можно ввести новое ФИО"
+              />
+            </>
+          )}
+          <label>Комментарий</label>
+          <input value={note} onChange={(e) => setNote(e.target.value)} />
+          <button
+            type="button"
+            className="primary"
+            onClick={book}
+            disabled={!slot || (staffView && !patientName.trim())}
+          >
+            {user.role === "patient" ? "Записаться" : "Назначить приём"}
+          </button>
         </div>
       </div>
       <div className="card">
-        <h2>Мои записи</h2>
+        <h2>{listTitle}</h2>
         <input
           placeholder={
             staffView
@@ -183,6 +216,7 @@ export function AppointmentsPanel({ user, onActivity }: AppointmentsPanelProps) 
               <th>Дата</th>
               {staffView && <th>Пациент</th>}
               {!doctorView && <th>Врач</th>}
+              <th>Комментарий</th>
               <th>Статус</th>
               <th></th>
             </tr>
@@ -197,6 +231,7 @@ export function AppointmentsPanel({ user, onActivity }: AppointmentsPanelProps) 
                     {a.doctor_name} ({a.specialization})
                   </td>
                 )}
+                <td>{a.note?.trim() ? a.note : "—"}</td>
                 <td>
                   <StatusBadge status={a.status} />
                 </td>

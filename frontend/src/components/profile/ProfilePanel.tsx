@@ -4,11 +4,15 @@ import {
   GENERIC_ERROR_RU,
   OTHER_SPECIALIZATION,
 } from "../../constants";
+import { validateProfileForm, normalizePhone } from "../../utils/validation";
+import { specializationOptions } from "../../utils/pickerOptions";
+import { OptionPicker } from "../ui/OptionPicker";
 import { RoleBadge } from "../ui/RoleBadge";
 
 interface ProfilePanelProps {
   user: User;
   onUpdate: (u: User) => void;
+  onLogout: () => void;
 }
 
 function resolveSpecializationSelect(current: string, options: string[]): string {
@@ -17,7 +21,7 @@ function resolveSpecializationSelect(current: string, options: string[]): string
   return OTHER_SPECIALIZATION;
 }
 
-export function ProfilePanel({ user, onUpdate }: ProfilePanelProps) {
+export function ProfilePanel({ user, onUpdate, onLogout }: ProfilePanelProps) {
   const [fullName, setFullName] = useState(user.full_name ?? "");
   const [phone, setPhone] = useState(user.phone ?? "");
   const [specializations, setSpecializations] = useState<string[]>([]);
@@ -46,8 +50,23 @@ export function ProfilePanel({ user, onUpdate }: ProfilePanelProps) {
 
   const save = async () => {
     setError("");
+    setMsg("");
+    const validationError = validateProfileForm({
+      fullName,
+      phone,
+      isDoctor,
+      specialization,
+      customSpecialization,
+    });
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     try {
-      const payload: Record<string, unknown> = { full_name: fullName, phone };
+      const payload: Record<string, unknown> = {
+        full_name: fullName.trim(),
+        phone: normalizePhone(phone) ?? phone,
+      };
       if (isDoctor) {
         payload.specialization =
           specialization === OTHER_SPECIALIZATION
@@ -73,22 +92,20 @@ export function ProfilePanel({ user, onUpdate }: ProfilePanelProps) {
       <label>ФИО</label>
       <input value={fullName} onChange={(e) => setFullName(e.target.value)} />
       <label>Телефон</label>
-      <input value={phone} onChange={(e) => setPhone(e.target.value)} />
+      <input
+        value={phone}
+        onChange={(e) => setPhone(e.target.value)}
+        placeholder="+79001234567 или 89001234567"
+      />
       {isDoctor && (
         <>
           <label>Специальность</label>
-          <select
+          <OptionPicker
+            options={specializationOptions(specializations)}
             value={specialization}
-            onChange={(e) => setSpecialization(e.target.value)}
-          >
-            <option value="">Выберите специальность</option>
-            {specializations.map((s) => (
-              <option key={s} value={s}>
-                {s}
-              </option>
-            ))}
-            <option value={OTHER_SPECIALIZATION}>Другое</option>
-          </select>
+            onChange={setSpecialization}
+            placeholder="Выберите специальность"
+          />
           {specialization === OTHER_SPECIALIZATION && (
             <>
               <label>Своя специальность</label>
@@ -100,9 +117,14 @@ export function ProfilePanel({ user, onUpdate }: ProfilePanelProps) {
           )}
         </>
       )}
-      <button type="button" className="primary" onClick={save}>
-        Сохранить
-      </button>
+      <div className="profile-actions">
+        <button type="button" className="primary" onClick={save}>
+          Сохранить
+        </button>
+        <button type="button" className="ghost danger" onClick={onLogout}>
+          Выход
+        </button>
+      </div>
     </div>
   );
 }

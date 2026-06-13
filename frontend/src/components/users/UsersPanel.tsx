@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { api, User } from "../../api";
-import { RoleBadge } from "../ui/RoleBadge";
+import { ROLE_LABELS } from "../../constants";
 
 export function UsersPanel() {
   const [users, setUsers] = useState<User[]>([]);
@@ -20,16 +20,16 @@ export function UsersPanel() {
             <th>Email</th>
             <th>Имя</th>
             <th>Роль</th>
+            <th>Специальность</th>
           </tr>
         </thead>
         <tbody>
           {users.map((u) => (
             <tr key={u.id}>
               <td>{u.email}</td>
-              <td>{u.full_name}</td>
-              <td>
-                <RoleBadge role={u.role} />
-              </td>
+              <td>{u.full_name ?? "—"}</td>
+              <td>{ROLE_LABELS[u.role] ?? u.role}</td>
+              <td>{u.role === "doctor" ? u.specialization ?? "—" : "—"}</td>
             </tr>
           ))}
         </tbody>

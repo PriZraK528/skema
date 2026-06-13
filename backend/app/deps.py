@@ -1,6 +1,6 @@
 from __future__ import annotations
 
-from typing import Callable, Iterable
+from typing import Callable
 
 from fastapi import Depends, HTTPException, status
 from fastapi.security import HTTPAuthorizationCredentials, HTTPBearer

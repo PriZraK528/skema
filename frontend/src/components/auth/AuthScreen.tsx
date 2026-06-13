@@ -2,13 +2,17 @@ import { FormEvent, useEffect, useState } from "react";
 import { api, User, UserRole } from "../../api";
 import {
   GENERIC_ERROR_RU,
+  MIN_PASSWORD_LENGTH,
   OTHER_SPECIALIZATION,
   SEED_PASSWORD,
   SEED_PATIENT_EMAIL,
 } from "../../constants";
+import { validateRegisterForm, normalizePhone } from "../../utils/validation";
+import { roleOptions, specializationOptions } from "../../utils/pickerOptions";
+import { OptionPicker } from "../ui/OptionPicker";
 
 interface AuthScreenProps {
-  onAuth: (user: User, access: string, refresh: string) => void;
+  onAuth: (user: User, access: string) => void;
 }
 
 export function AuthScreen({ onAuth }: AuthScreenProps) {
@@ -35,12 +39,34 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
-    try {
-      const payload: Record<string, unknown> = {
+    if (mode === "register") {
+      const validationError = validateRegisterForm({
         email: form.email,
         password: form.password,
-        full_name: form.full_name,
+        fullName: form.full_name,
         phone: form.phone,
+        role: form.role,
+        specialization: form.specialization,
+        customSpecialization: form.customSpecialization,
+        clinicKey: form.clinicKey,
+      });
+      if (validationError) {
+        setError(validationError);
+        return;
+      }
+    } else {
+      if (!form.email.trim() || !form.password) {
+        setError("Укажите email и пароль");
+        return;
+      }
+    }
+    try {
+      const normalizedPhone = mode === "register" ? normalizePhone(form.phone) : null;
+      const payload: Record<string, unknown> = {
+        email: form.email.trim(),
+        password: form.password,
+        full_name: form.full_name.trim(),
+        phone: normalizedPhone ?? form.phone,
         role: form.role,
       };
       if (form.role === "doctor") {
@@ -54,7 +80,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
         mode === "login"
           ? await api.login(form.email, form.password)
           : await api.register(payload);
-      onAuth(res.user, res.access_token, res.refresh_token);
+      onAuth(res.user, res.access_token);
     } catch (err) {
       setError(err instanceof Error ? err.message : GENERIC_ERROR_RU);
     }
@@ -83,7 +109,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           <input
             type="password"
             required
-            minLength={8}
+            minLength={MIN_PASSWORD_LENGTH}
             value={form.password}
             onChange={(e) => setForm({ ...form, password: e.target.value })}
           />
@@ -99,36 +125,25 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               <input
                 required
                 value={form.phone}
+                placeholder="+79001234567 или 89001234567"
                 onChange={(e) => setForm({ ...form, phone: e.target.value })}
               />
               <label>Роль</label>
-              <select
+              <OptionPicker
+                options={roleOptions()}
                 value={form.role}
-                onChange={(e) =>
-                  setForm({ ...form, role: e.target.value as UserRole })
-                }
-              >
-                <option value="patient">Пациент</option>
-                <option value="doctor">Врач</option>
-              </select>
+                onChange={(role) => setForm({ ...form, role: role as UserRole })}
+                searchable={false}
+              />
               {isDoctorRegister && (
                 <>
                   <label>Специальность</label>
-                  <select
-                    required
+                  <OptionPicker
+                    options={specializationOptions(specializations)}
                     value={form.specialization}
-                    onChange={(e) =>
-                      setForm({ ...form, specialization: e.target.value })
-                    }
-                  >
-                    <option value="">Выберите специальность</option>
-                    {specializations.map((s) => (
-                      <option key={s} value={s}>
-                        {s}
-                      </option>
-                    ))}
-                    <option value={OTHER_SPECIALIZATION}>Другое</option>
-                  </select>
+                    onChange={(specialization) => setForm({ ...form, specialization })}
+                    placeholder="Выберите специальность"
+                  />
                   {form.specialization === OTHER_SPECIALIZATION && (
                     <>
                       <label>Своя специальность</label>

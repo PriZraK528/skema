@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useEffect, useMemo, useState } from "react";
 import { api, AvailabilitySlot, Doctor, User } from "../../api";
 import {
   DEFAULT_SLOT_DURATION_MINUTES,
@@ -8,7 +8,10 @@ import {
   MS_PER_DAY,
 } from "../../constants";
 import { formatDateTime, toDatetimeLocal } from "../../utils/datetime";
+import { doctorOptions } from "../../utils/pickerOptions";
 import { isAdmin } from "../../utils/roles";
+import { validateSlotDuration, validateSlotStart } from "../../utils/validation";
+import { OptionPicker } from "../ui/OptionPicker";
 
 interface SchedulePanelProps {
   user: User;
@@ -54,6 +57,13 @@ export function SchedulePanel({ user, onActivity }: SchedulePanelProps) {
 
   const addSlot = async () => {
     setError("");
+    setMsg("");
+    const validationError =
+      validateSlotStart(startsAt) ?? validateSlotDuration(duration);
+    if (validationError) {
+      setError(validationError);
+      return;
+    }
     try {
       const start = new Date(startsAt);
       await api.createAvailabilitySlot(doctorId, {
@@ -81,6 +91,7 @@ export function SchedulePanel({ user, onActivity }: SchedulePanelProps) {
   };
 
   const selectedDoctor = doctors.find((d) => d.id === doctorId);
+  const doctorPickerOptions = useMemo(() => doctorOptions(doctors), [doctors]);
 
   return (
     <div className="card">
@@ -91,16 +102,12 @@ export function SchedulePanel({ user, onActivity }: SchedulePanelProps) {
       {adminView && (
         <>
           <label>Врач</label>
-          <select
-            value={doctorId}
-            onChange={(e) => onDoctorChange(Number(e.target.value))}
-          >
-            {doctors.map((d) => (
-              <option key={d.id} value={d.id}>
-                {d.full_name} — {d.specialization}
-              </option>
-            ))}
-          </select>
+          <OptionPicker
+            options={doctorPickerOptions}
+            value={String(doctorId)}
+            onChange={(id) => onDoctorChange(Number(id))}
+            placeholder="Выберите врача"
+          />
           {selectedDoctor && (
             <p className="muted">
               Окна ниже относятся к: {selectedDoctor.full_name}, {selectedDoctor.specialization}
@@ -110,26 +117,25 @@ export function SchedulePanel({ user, onActivity }: SchedulePanelProps) {
       )}
       {msg && <p className="muted">{msg}</p>}
       {error && <p className="error">{error}</p>}
-      <div className="grid2">
-        <div>
-          <label>Начало приёма</label>
-          <input
-            type="datetime-local"
-            value={startsAt}
-            onChange={(e) => setStartsAt(e.target.value)}
-          />
-          <label>Длительность (мин)</label>
-          <input
-            type="number"
-            min={MIN_SLOT_DURATION_MINUTES}
-            max={MAX_SLOT_DURATION_MINUTES}
-            value={duration}
-            onChange={(e) => setDuration(Number(e.target.value))}
-          />
-          <button type="button" className="primary" onClick={addSlot}>
-            Создать окно
-          </button>
-        </div>
+      <div className="form-stack">
+        <label>Начало приёма</label>
+        <input
+          type="datetime-local"
+          value={startsAt}
+          onChange={(e) => setStartsAt(e.target.value)}
+        />
+        <label>Длительность (мин)</label>
+        <input
+          type="number"
+          className="input-plain"
+          min={MIN_SLOT_DURATION_MINUTES}
+          max={MAX_SLOT_DURATION_MINUTES}
+          value={duration}
+          onChange={(e) => setDuration(Number(e.target.value))}
+        />
+        <button type="button" className="primary" onClick={addSlot}>
+          Создать окно
+        </button>
       </div>
       <table>
         <thead>

@@ -91,17 +91,6 @@ a:hover {
   overflow-y: auto;
 }
 
-.sidebar-footer {
-  flex-shrink: 0;
-  padding-top: 0.75rem;
-  margin-top: auto;
-  border-top: 1px solid var(--border);
-}
-
-.nav-btn-logout {
-  width: 100%;
-}
-
 .nav-btn {
   background: transparent;
   border: none;
@@ -150,8 +139,8 @@ a:hover {
 .main {
   flex: 1;
   min-width: 0;
+  width: 100%;
   padding: 1.5rem 2rem;
-  max-width: 1100px;
 }
 
 .card {
@@ -160,6 +149,7 @@ a:hover {
   border-radius: var(--radius);
   padding: 1.25rem;
   margin-bottom: 1rem;
+  width: 100%;
   box-shadow: 0 4px 24px rgba(0, 0, 0, 0.35);
 }
 
@@ -169,10 +159,104 @@ a:hover {
   color: var(--text);
 }
 
-.grid2 {
-  display: grid;
-  grid-template-columns: 1fr 1fr;
+.panel-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
   gap: 1rem;
+  margin-bottom: 1rem;
+}
+
+.panel-header h2 {
+  margin: 0 0 0.35rem;
+}
+
+.panel-header .muted {
+  margin: 0;
+}
+
+.form-stack {
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  max-width: 100%;
+}
+
+.profile-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.5rem;
+  margin-top: 0.25rem;
+}
+
+.option-picker {
+  position: relative;
+  width: 100%;
+  margin-bottom: 0.85rem;
+}
+
+.option-picker-field {
+  position: relative;
+}
+
+.option-picker-field input {
+  width: 100%;
+  margin-bottom: 0;
+  padding-right: 2rem;
+}
+
+.option-picker-chevron {
+  position: absolute;
+  right: 0.75rem;
+  top: 50%;
+  transform: translateY(-50%);
+  pointer-events: none;
+  color: var(--muted);
+  font-size: 0.85rem;
+}
+
+.option-picker.is-disabled .option-picker-field input {
+  opacity: 0.85;
+  cursor: default;
+}
+
+.option-picker-dropdown {
+  position: absolute;
+  z-index: 20;
+  top: calc(100% + 0.25rem);
+  left: 0;
+  right: 0;
+  max-height: 220px;
+  overflow-y: auto;
+  margin: 0;
+  padding: 0.35rem 0;
+  list-style: none;
+  background: var(--surface2);
+  border: 1px solid var(--border);
+  border-radius: 8px;
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.45);
+}
+
+.option-picker-dropdown button {
+  width: 100%;
+  border: none;
+  background: transparent;
+  color: var(--text);
+  text-align: left;
+  padding: 0.5rem 0.75rem;
+  cursor: pointer;
+}
+
+.option-picker-dropdown button:hover,
+.option-picker-dropdown button.is-selected {
+  background: var(--bg-elevated);
+  color: var(--accent);
+}
+
+.option-picker-empty {
+  padding: 0.5rem 0.75rem;
+  color: var(--muted);
+  font-size: 0.85rem;
 }
 
 label {
@@ -182,8 +266,7 @@ label {
   margin-bottom: 0.35rem;
 }
 
-input,
-select {
+input {
   width: 100%;
   padding: 0.55rem 0.7rem;
   border-radius: 8px;
@@ -194,11 +277,20 @@ select {
   transition: border-color 0.15s, box-shadow 0.15s;
 }
 
-input:focus,
-select:focus {
+input:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);
+}
+
+input.input-plain {
+  -moz-appearance: textfield;
+}
+
+input.input-plain::-webkit-outer-spin-button,
+input.input-plain::-webkit-inner-spin-button {
+  -webkit-appearance: none;
+  margin: 0;
 }
 
 button.primary {
@@ -334,22 +426,45 @@ tr:hover td {
 }
 
 .notification-list {
-  list-style: none;
-  padding: 0;
-  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 0.75rem;
 }
 
-.notification-list li {
-  padding: 0.75rem 0;
-  border-bottom: 1px solid var(--border);
+.notification-card {
+  padding: 1rem 1.1rem;
+  border: 1px solid var(--border);
+  border-radius: var(--radius);
+  background: var(--bg-elevated);
+}
+
+.notification-unread {
+  border-left: 3px solid var(--accent);
+  padding-left: calc(1.1rem - 3px);
 }
 
 .notification-read {
-  opacity: 0.6;
+  opacity: 0.72;
+}
+
+.notification-card-header {
+  display: flex;
+  align-items: baseline;
+  justify-content: space-between;
+  gap: 1rem;
+  margin-bottom: 0.5rem;
+}
+
+.notification-message {
+  margin: 0 0 0.75rem;
+  line-height: 1.45;
+  color: var(--text);
 }
 
 .notification-time {
   font-size: 0.8rem;
+  color: var(--muted);
+  white-space: nowrap;
 }
 
 @media (max-width: 800px) {
@@ -367,12 +482,5 @@ tr:hover td {
     flex-direction: row;
     flex-wrap: wrap;
     overflow: visible;
-  }
-  .sidebar-footer {
-    width: 100%;
-    margin-top: 0.5rem;
-  }
-  .grid2 {
-    grid-template-columns: 1fr;
   }
 }

@@ -17,7 +17,7 @@ function errorMessage(detail: unknown): string {
     return detail
       .map((item) =>
         typeof item === "object" && item !== null && "msg" in item
-          ? errorMessage((item as { msg: string }).msg)
+          ? API_ERRORS[(item as { msg: string }).msg] ?? (item as { msg: string }).msg
           : errorMessage(item),
       )
       .join("; ");
@@ -113,7 +113,6 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   });
   if (res.status === 401) {
     localStorage.removeItem("access_token");
-    localStorage.removeItem("refresh_token");
     localStorage.removeItem("user");
     window.location.reload();
   }
@@ -139,7 +138,6 @@ export const api = {
       body: JSON.stringify(data),
     }),
   specializations: () => request<string[]>("/api/auth/specializations"),
-  me: () => request<User>("/api/auth/me"),
   updateProfile: (data: Record<string, unknown>) =>
     request<User>("/api/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
   doctors: (q?: string) =>
@@ -184,6 +182,8 @@ export const api = {
       method: "PATCH",
       body: JSON.stringify({ is_read: true }),
     }),
+  markAllNotificationsRead: () =>
+    request<{ message: string }>("/api/notifications/read-all", { method: "POST" }),
   users: (q?: string) =>
     request<Paginated<User>>(`/api/users?${listLimit}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
 };

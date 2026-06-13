@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException, Query
-from sqlalchemy import func, select
+from sqlalchemy import func, select, update
 from sqlalchemy.orm import Session
 
 from app.constants import (
@@ -19,6 +19,7 @@ from app.models import Appointment, AppointmentStatus, Notification, Notificatio
 from app.schemas.common import MessageResponse, PaginatedResponse
 from app.schemas.notification import NotificationMarkRead, NotificationOut
 from app.services.notifications import create_notification
+from app.utils.formatting import format_dt_ru
 
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
@@ -78,6 +79,20 @@ def mark_read(
     return NotificationOut.model_validate(notification)
 
 
+@router.post("/read-all", response_model=MessageResponse)
+def mark_all_read(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+):
+    db.execute(
+        update(Notification)
+        .where(Notification.user_id == user.id, Notification.is_read.is_(False))
+        .values(is_read=True)
+    )
+    db.commit()
+    return MessageResponse(message="All notifications marked as read")
+
+
 @router.post("/reminders/run", response_model=MessageResponse)
 def run_reminders(
     db: Session = Depends(get_db),
@@ -104,7 +119,7 @@ def run_reminders(
             user_id=appt.patient.user_id,
             ntype=NotificationType.appointment_reminder,
             title=NOTIFICATION_TITLE_REMINDER,
-            message=f"Приём {appt.starts_at.isoformat()} у врача {appt.doctor.full_name}",
+            message=f"Приём {format_dt_ru(appt.starts_at)} у врача {appt.doctor.full_name}",
             appointment_id=appt.id,
         )
         count += 1

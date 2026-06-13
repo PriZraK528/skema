@@ -27,7 +27,7 @@ export default function App() {
   }, []);
 
   useEffect(() => {
-    if (!user) return;
+    if (!user || isAdmin(user)) return;
     refreshUnreadCount();
     const intervalId = window.setInterval(refreshUnreadCount, UNREAD_POLL_INTERVAL_MS);
     const onFocus = () => refreshUnreadCount();
@@ -40,10 +40,15 @@ export default function App() {
     };
   }, [user, refreshUnreadCount]);
 
-  const onAuth = (u: User, access: string, refresh: string) => {
+  useEffect(() => {
+    if (user && isAdmin(user) && tab === "notifications") {
+      setTab("appointments");
+    }
+  }, [user, tab]);
+
+  const onAuth = (u: User, access: string) => {
     localStorage.setItem("user", JSON.stringify(u));
     localStorage.setItem("access_token", access);
-    localStorage.setItem("refresh_token", refresh);
     setUser(u);
   };
 
@@ -57,22 +62,17 @@ export default function App() {
 
   const canSchedule = canManageSchedule(user);
   const canUsers = isAdmin(user);
+  const showNotifications = !isAdmin(user);
 
   return (
-    <AppLayout
-      user={user}
-      tab={tab}
-      unreadCount={unreadCount}
-      onTabChange={setTab}
-      onLogout={logout}
-    >
+    <AppLayout user={user} tab={tab} unreadCount={unreadCount} onTabChange={setTab}>
       {tab === "appointments" && (
         <AppointmentsPanel user={user} onActivity={refreshUnreadCount} />
       )}
       {tab === "schedule" && canSchedule && (
         <SchedulePanel user={user} onActivity={refreshUnreadCount} />
       )}
-      {tab === "notifications" && (
+      {tab === "notifications" && showNotifications && (
         <NotificationsPanel onUnreadChange={refreshUnreadCount} />
       )}
       {tab === "profile" && (
@@ -82,6 +82,7 @@ export default function App() {
             setUser(u);
             localStorage.setItem("user", JSON.stringify(u));
           }}
+          onLogout={logout}
         />
       )}
       {tab === "users" && canUsers && <UsersPanel />}

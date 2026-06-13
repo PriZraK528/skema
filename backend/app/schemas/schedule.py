@@ -21,9 +21,9 @@ class AvailabilitySlotCreate(BaseModel):
     @model_validator(mode="after")
     def validate_interval(self):
         if self.ends_at is None and self.duration_minutes is None:
-            raise ValueError("Provide ends_at or duration_minutes")
+            raise ValueError("Укажите конец приёма или длительность")
         if self.ends_at and self.duration_minutes:
-            raise ValueError("Provide only ends_at or duration_minutes, not both")
+            raise ValueError("Укажите только конец приёма или длительность, не оба поля")
         return self
 
 

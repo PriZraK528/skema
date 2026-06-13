@@ -9,12 +9,12 @@ interface SidebarProps {
   user: User;
   unreadCount: number;
   onTabChange: (tab: Tab) => void;
-  onLogout: () => void;
 }
 
-export function Sidebar({ tab, user, unreadCount, onTabChange, onLogout }: SidebarProps) {
+export function Sidebar({ tab, user, unreadCount, onTabChange }: SidebarProps) {
   const canSchedule = canManageSchedule(user);
   const canUsers = isAdmin(user);
+  const showNotifications = !isAdmin(user);
 
   return (
     <aside className="sidebar">
@@ -39,20 +39,22 @@ export function Sidebar({ tab, user, unreadCount, onTabChange, onLogout }: Sideb
             Расписание
           </button>
         )}
-        <button
-          type="button"
-          className={`nav-btn ${tab === "notifications" ? "active" : ""}`}
-          onClick={() => onTabChange("notifications")}
-        >
-          <span className="nav-btn-label">
-            Уведомления
-            {unreadCount > 0 && (
-              <span className="nav-badge">
-                {unreadCount > NAV_BADGE_MAX ? `${NAV_BADGE_MAX}+` : unreadCount}
-              </span>
-            )}
-          </span>
-        </button>
+        {showNotifications && (
+          <button
+            type="button"
+            className={`nav-btn ${tab === "notifications" ? "active" : ""}`}
+            onClick={() => onTabChange("notifications")}
+          >
+            <span className="nav-btn-label">
+              Уведомления
+              {unreadCount > 0 && (
+                <span className="nav-badge">
+                  {unreadCount > NAV_BADGE_MAX ? `${NAV_BADGE_MAX}+` : unreadCount}
+                </span>
+              )}
+            </span>
+          </button>
+        )}
         <button
           type="button"
           className={`nav-btn ${tab === "profile" ? "active" : ""}`}
@@ -70,11 +72,6 @@ export function Sidebar({ tab, user, unreadCount, onTabChange, onLogout }: Sideb
           </button>
         )}
       </nav>
-      <div className="sidebar-footer">
-        <button type="button" className="nav-btn nav-btn-logout" onClick={onLogout}>
-          Выход
-        </button>
-      </div>
     </aside>
   );
 }

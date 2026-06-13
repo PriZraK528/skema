@@ -1,9 +1,9 @@
 from __future__ import annotations
 
-from datetime import datetime, timedelta, timezone
+from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import or_, select
+from sqlalchemy import select
 from sqlalchemy.orm import Session, joinedload
 
 from app.constants import (
@@ -24,6 +24,7 @@ from app.models import (
 from app.schemas.appointment import AppointmentOut
 from app.services.notifications import create_notification
 from app.services.schedule import get_availability_slot, is_slot_available
+from app.utils.formatting import format_dt_ru
 
 
 def _ends_at_from_availability(db: Session, doctor_id: int, starts_at: datetime) -> datetime:
@@ -140,7 +141,7 @@ def create_appointment(
     patient = db.get(Patient, pid)
     if not patient:
         raise HTTPException(status_code=404, detail=ErrorDetail.PATIENT_NOT_FOUND)
-    msg = f"Запись на приём {starts_at.isoformat()} к врачу {doctor.full_name}"
+    msg = f"Запись на приём {format_dt_ru(starts_at)} к врачу {doctor.full_name}"
     create_notification(
         db,
         user_id=patient.user_id,
@@ -168,7 +169,7 @@ def cancel_appointment(db: Session, appointment: Appointment, user: User) -> App
     _check_access(appointment, user, write=True)
     appointment.status = AppointmentStatus.cancelled
     appointment.updated_at = datetime.now(timezone.utc)
-    msg = f"Запись {appointment.starts_at.isoformat()} отменена"
+    msg = f"Запись {format_dt_ru(appointment.starts_at)} отменена"
     for uid in {appointment.patient.user_id, appointment.doctor.user_id}:
         create_notification(
             db,
