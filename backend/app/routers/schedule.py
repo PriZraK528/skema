@@ -39,7 +39,7 @@ def _resolve_doctor_id(db: Session, user: User, doctor_id: int | None) -> int:
 
 
 def _ensure_schedule_access(doctor: Doctor, user: User, write: bool = False) -> None:
-    if user.role in (UserRole.admin, UserRole.registrar):
+    if user.role == UserRole.admin:
         return
     if user.role == UserRole.doctor and user.doctor and user.doctor.id == doctor.id:
         return
@@ -88,7 +88,7 @@ def add_availability_slot(
     doctor_id: int,
     payload: AvailabilitySlotCreate,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.admin, UserRole.doctor, UserRole.registrar)),
+    user: User = Depends(require_roles(UserRole.admin, UserRole.doctor)),
 ):
     """Врач вручную открывает окно для записи."""
     doctor = _get_doctor_or_404(db, doctor_id)
@@ -109,7 +109,7 @@ def add_availability_slot(
 def remove_availability_slot(
     slot_id: int,
     db: Session = Depends(get_db),
-    user: User = Depends(require_roles(UserRole.admin, UserRole.doctor, UserRole.registrar)),
+    user: User = Depends(require_roles(UserRole.admin, UserRole.doctor)),
 ):
     slot = db.get(DoctorAvailabilitySlot, slot_id)
     if not slot:

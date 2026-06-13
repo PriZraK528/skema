@@ -1,0 +1,52 @@
+"""remove registrar role and fix rebooking after cancel
+
+Revision ID: 0003_remove_registrar_fix_booking
+Revises: 0002_availability_slots
+Create Date: 2026-06-02
+
+"""
+
+from alembic import op
+
+
+revision = "0003_remove_registrar_fix_booking"
+down_revision = "0002_availability_slots"
+branch_labels = None
+depends_on = None
+
+
+def upgrade() -> None:
+    op.execute("UPDATE users SET role = 'admin' WHERE role = 'registrar'")
+    op.drop_constraint("uq_appointment_doctor_starts_at", "appointments", type_="unique")
+    op.execute(
+        """
+        CREATE UNIQUE INDEX uq_appointment_doctor_starts_at_booked
+        ON appointments (doctor_id, starts_at)
+        WHERE status = 'booked'
+        """
+    )
+    op.execute("ALTER TYPE user_role RENAME TO user_role_old")
+    op.execute("CREATE TYPE user_role AS ENUM ('admin', 'doctor', 'patient')")
+    op.execute(
+        "ALTER TABLE users ALTER COLUMN role TYPE user_role "
+        "USING role::text::user_role"
+    )
+    op.execute("DROP TYPE user_role_old")
+
+
+def downgrade() -> None:
+    op.execute("ALTER TYPE user_role RENAME TO user_role_old")
+    op.execute(
+        "CREATE TYPE user_role AS ENUM ('admin', 'doctor', 'patient', 'registrar')"
+    )
+    op.execute(
+        "ALTER TABLE users ALTER COLUMN role TYPE user_role "
+        "USING role::text::user_role"
+    )
+    op.execute("DROP TYPE user_role_old")
+    op.execute("DROP INDEX IF EXISTS uq_appointment_doctor_starts_at_booked")
+    op.create_unique_constraint(
+        "uq_appointment_doctor_starts_at",
+        "appointments",
+        ["doctor_id", "starts_at"],
+    )

@@ -4,7 +4,7 @@ import enum
 from datetime import datetime
 from typing import Optional
 
-from sqlalchemy import Boolean, DateTime, ForeignKey, Integer, String, Text, UniqueConstraint
+from sqlalchemy import Boolean, DateTime, ForeignKey, Index, Integer, String, Text, UniqueConstraint, text
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
 from app.db import Base, db_enum
@@ -14,7 +14,6 @@ class UserRole(str, enum.Enum):
     admin = "admin"
     doctor = "doctor"
     patient = "patient"
-    registrar = "registrar"
 
 
 class User(Base):
@@ -87,7 +86,14 @@ class AppointmentStatus(str, enum.Enum):
 class Appointment(Base):
     __tablename__ = "appointments"
     __table_args__ = (
-        UniqueConstraint("doctor_id", "starts_at", name="uq_appointment_doctor_starts_at"),
+        Index(
+            "uq_appointment_doctor_starts_at_booked",
+            "doctor_id",
+            "starts_at",
+            unique=True,
+            sqlite_where=text("status = 'booked'"),
+            postgresql_where=text("status = 'booked'"),
+        ),
     )
 
     id: Mapped[int] = mapped_column(Integer, primary_key=True)

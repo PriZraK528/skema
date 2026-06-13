@@ -13,6 +13,7 @@ venv/
 ENV/
 env/
 *.egg-info/
+pytest-cache-files-*/
 
 node_modules/
 dist/

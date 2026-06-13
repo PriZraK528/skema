@@ -58,19 +58,36 @@ def load_appointment(db: Session, appointment_id: int) -> Appointment:
     return appointment
 
 
-def resolve_patient_id(db: Session, user: User, patient_id: int | None) -> int:
+def resolve_patient_id(
+    db: Session,
+    user: User,
+    patient_id: int | None,
+    patient_name: str | None = None,
+) -> int:
     if user.role == UserRole.patient:
         if not user.patient:
             raise HTTPException(status_code=400, detail="Patient profile missing")
         if patient_id and patient_id != user.patient.id:
             raise HTTPException(status_code=403, detail="Cannot book for another patient")
         return user.patient.id
-    if patient_id is None:
-        raise HTTPException(status_code=400, detail="patient_id is required")
-    patient = db.get(Patient, patient_id)
-    if not patient:
+    if patient_id is not None:
+        patient = db.get(Patient, patient_id)
+        if not patient:
+            raise HTTPException(status_code=404, detail="Patient not found")
+        return patient_id
+    if not patient_name or not patient_name.strip():
+        raise HTTPException(status_code=400, detail="patient_name is required")
+    name = patient_name.strip()
+    exact = db.scalars(select(Patient).where(Patient.full_name.ilike(name))).all()
+    exact_matches = [p for p in exact if p.full_name.lower() == name.lower()]
+    if len(exact_matches) == 1:
+        return exact_matches[0].id
+    matches = db.scalars(select(Patient).where(Patient.full_name.ilike(f"%{name}%"))).all()
+    if not matches:
         raise HTTPException(status_code=404, detail="Patient not found")
-    return patient_id
+    if len(matches) > 1:
+        raise HTTPException(status_code=400, detail="Multiple patients match this name")
+    return matches[0].id
 
 
 def create_appointment(
@@ -81,6 +98,7 @@ def create_appointment(
     starts_at: datetime,
     note: str | None,
     patient_id: int | None,
+    patient_name: str | None = None,
 ) -> Appointment:
     from app.services.schedule import _normalize_dt
 
@@ -94,7 +112,7 @@ def create_appointment(
         if patient_id is None:
             raise HTTPException(status_code=403, detail="Doctor can only use own schedule when assigning")
 
-    pid = resolve_patient_id(db, user, patient_id)
+    pid = resolve_patient_id(db, user, patient_id, patient_name)
     ends_at = _ends_at_from_availability(db, doctor_id, starts_at)
 
     if not is_slot_available(db, doctor_id, starts_at, ends_at):
@@ -156,58 +174,8 @@ def cancel_appointment(db: Session, appointment: Appointment, user: User) -> App
     return load_appointment(db, appointment.id)
 
 
-def reschedule_appointment(
-    db: Session,
-    appointment: Appointment,
-    user: User,
-    new_starts_at: datetime,
-    note: str | None,
-) -> Appointment:
-    if appointment.status != AppointmentStatus.booked:
-        raise HTTPException(status_code=400, detail="Only booked appointments can be rescheduled")
-    _check_access(appointment, user, write=True)
-
-    from app.services.schedule import _normalize_dt
-
-    new_starts_at = _normalize_dt(new_starts_at)
-
-    new_ends_at = _ends_at_from_availability(db, appointment.doctor_id, new_starts_at)
-
-    if not is_slot_available(db, appointment.doctor_id, new_starts_at, new_ends_at):
-        raise HTTPException(status_code=409, detail="Selected time slot is not available")
-
-    old_start = appointment.starts_at
-    appointment.status = AppointmentStatus.cancelled
-    appointment.updated_at = datetime.now(timezone.utc)
-
-    new_appt = Appointment(
-        patient_id=appointment.patient_id,
-        doctor_id=appointment.doctor_id,
-        starts_at=new_starts_at,
-        ends_at=new_ends_at,
-        status=AppointmentStatus.booked,
-        note=note or appointment.note,
-        rescheduled_from_id=appointment.id,
-    )
-    db.add(new_appt)
-    db.flush()
-
-    msg = f"Запись перенесена с {old_start.isoformat()} на {new_starts_at.isoformat()}"
-    for uid in {appointment.patient.user_id, appointment.doctor.user_id}:
-        create_notification(
-            db,
-            user_id=uid,
-            ntype=NotificationType.appointment_rescheduled,
-            title="Запись перенесена",
-            message=msg,
-            appointment_id=new_appt.id,
-        )
-    db.commit()
-    return load_appointment(db, new_appt.id)
-
-
 def _check_access(appointment: Appointment, user: User, write: bool = False) -> None:
-    if user.role == UserRole.admin or user.role == UserRole.registrar:
+    if user.role == UserRole.admin:
         return
     if user.role == UserRole.patient and user.patient and appointment.patient_id == user.patient.id:
         return

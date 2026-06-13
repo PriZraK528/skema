@@ -84,7 +84,6 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
               >
                 <option value="patient">Пациент</option>
                 <option value="doctor">Врач</option>
-                <option value="registrar">Регистратор</option>
               </select>
             </>
           )}

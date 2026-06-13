@@ -15,6 +15,8 @@ const API_ERRORS: Record<string, string> = {
   "Cannot delete slot with an active appointment": "Нельзя удалить окно с активной записью",
   "Email already registered": "Email уже зарегистрирован",
   "Access denied": "Доступ запрещён",
+  "Multiple patients match this name": "Найдено несколько пациентов с таким именем",
+  "patient_name is required": "Укажите ФИО пациента",
 };
 
 function errorMessage(detail: unknown): string {
@@ -32,7 +34,7 @@ function errorMessage(detail: unknown): string {
   return String(detail);
 }
 
-export type UserRole = "admin" | "doctor" | "patient" | "registrar";
+export type UserRole = "admin" | "doctor" | "patient";
 
 export interface User {
   id: number;
@@ -90,6 +92,12 @@ export interface Notification {
   is_read: boolean;
   appointment_id?: number;
   created_at: string;
+}
+
+export interface PatientBrief {
+  id: number;
+  full_name: string;
+  phone: string;
 }
 
 export interface AvailabilitySlot {
@@ -170,11 +178,8 @@ export const api = {
     }),
   cancel: (id: number) =>
     request<Appointment>(`/api/appointments/${id}/cancel`, { method: "POST" }),
-  reschedule: (id: number, starts_at: string) =>
-    request<Appointment>(`/api/appointments/${id}/reschedule`, {
-      method: "POST",
-      body: JSON.stringify({ starts_at }),
-    }),
+  patients: (q?: string) =>
+    request<PatientBrief[]>(`/api/patients?limit=50${q ? `&q=${encodeURIComponent(q)}` : ""}`),
   notifications: (unreadOnly = false) =>
     request<Paginated<Notification>>(
       `/api/notifications?limit=50${unreadOnly ? "&unread_only=true" : ""}`,

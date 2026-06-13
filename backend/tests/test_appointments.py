@@ -63,10 +63,43 @@ def test_doctor_can_assign_appointment(client: TestClient):
     r = client.post(
         "/api/appointments/assign",
         headers=headers,
-        json={"patient_id": 1, "starts_at": starts_at.isoformat(), "note": "Assigned by doctor"},
+        json={
+            "patient_name": "Петров Пётр",
+            "starts_at": starts_at.isoformat(),
+            "note": "Assigned by doctor",
+        },
     )
     assert r.status_code == 201, r.text
-    assert r.json()["patient_id"] == 1
+    assert r.json()["patient_name"] == "Петров Пётр"
+
+
+def test_patient_can_rebook_cancelled_slot(client: TestClient):
+    doctor_token = _login(client, "doctor@clinic.example")
+    doctor_headers = {"Authorization": f"Bearer {doctor_token}"}
+    starts_at = _next_weekday_morning() + timedelta(hours=2)
+    _create_slot(client, doctor_headers, starts_at)
+
+    patient_token = _login(client, "patient@clinic.example")
+    patient_headers = {"Authorization": f"Bearer {patient_token}"}
+
+    book = client.post(
+        "/api/appointments",
+        headers=patient_headers,
+        json={"doctor_id": 1, "starts_at": starts_at.isoformat()},
+    )
+    assert book.status_code == 201, book.text
+    appt_id = book.json()["id"]
+
+    cancel = client.post(f"/api/appointments/{appt_id}/cancel", headers=patient_headers)
+    assert cancel.status_code == 200
+
+    rebook = client.post(
+        "/api/appointments",
+        headers=patient_headers,
+        json={"doctor_id": 1, "starts_at": starts_at.isoformat()},
+    )
+    assert rebook.status_code == 201, rebook.text
+    assert rebook.json()["status"] == "booked"
 
 
 def test_no_slots_without_doctor_create(client: TestClient):

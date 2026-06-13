@@ -30,9 +30,8 @@ export default function App() {
 
   if (!user) return <AuthScreen onAuth={onAuth} />;
 
-  const canSchedule =
-    user.role === "doctor" || user.role === "admin" || user.role === "registrar";
-  const canUsers = user.role === "admin" || user.role === "registrar";
+  const canSchedule = user.role === "doctor" || user.role === "admin";
+  const canUsers = user.role === "admin";
 
   return (
     <AppLayout user={user} tab={tab} onTabChange={setTab} onLogout={logout}>

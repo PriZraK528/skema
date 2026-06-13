@@ -334,19 +334,6 @@ tr:hover td {
   font-size: 0.8rem;
 }
 
-.reschedule-inline {
-  display: flex;
-  flex-wrap: wrap;
-  gap: 0.5rem;
-  align-items: center;
-}
-
-.reschedule-inline input {
-  width: auto;
-  min-width: 12rem;
-  margin-bottom: 0;
-}
-
 @media (max-width: 800px) {
   .layout {
     flex-direction: column;

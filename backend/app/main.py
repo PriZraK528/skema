@@ -3,7 +3,7 @@ import logging
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 
-from app.routers import appointments, auth, doctors, notifications, schedule, users
+from app.routers import appointments, auth, doctors, notifications, patients, schedule, users
 from app.settings import settings
 
 logging.basicConfig(level=logging.INFO)
@@ -27,6 +27,7 @@ def create_app() -> FastAPI:
     app.include_router(auth.router, prefix="/api")
     app.include_router(users.router, prefix="/api")
     app.include_router(doctors.router, prefix="/api")
+    app.include_router(patients.router, prefix="/api")
     app.include_router(schedule.router, prefix="/api")
     app.include_router(appointments.router, prefix="/api")
     app.include_router(notifications.router, prefix="/api")

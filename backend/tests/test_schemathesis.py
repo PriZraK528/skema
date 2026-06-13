@@ -4,7 +4,9 @@ import pytest
 import schemathesis
 from hypothesis import settings as hypothesis_settings
 
-schema = schemathesis.openapi.from_asgi("/openapi.json", app_import="app.main:app")
+from app.main import app
+
+schema = schemathesis.openapi.from_asgi("/openapi.json", app)
 
 
 @schema.parametrize()

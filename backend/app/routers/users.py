@@ -49,7 +49,7 @@ def list_users(
     limit: int = Query(default=20, ge=1, le=100),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
-    _: User = Depends(require_roles(UserRole.admin, UserRole.registrar)),
+    _: User = Depends(require_roles(UserRole.admin)),
 ):
     stmt = select(User)
     if role:

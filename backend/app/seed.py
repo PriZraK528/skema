@@ -40,15 +40,6 @@ def run_seed() -> None:
         db.add(doctor)
         db.flush()
 
-        reg = User(
-            email="registrar@clinic.example",
-            password_hash=hash_password(SEED_PASSWORD),
-            role=UserRole.registrar,
-            full_name="Регистратор",
-            phone="+70000000003",
-        )
-        db.add(reg)
-
         pat_user = User(
             email="patient@clinic.example",
             password_hash=hash_password(SEED_PASSWORD),

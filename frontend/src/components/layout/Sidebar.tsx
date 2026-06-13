@@ -10,9 +10,8 @@ interface SidebarProps {
 }
 
 export function Sidebar({ tab, user, onTabChange, onLogout }: SidebarProps) {
-  const canSchedule =
-    user.role === "doctor" || user.role === "admin" || user.role === "registrar";
-  const canUsers = user.role === "admin" || user.role === "registrar";
+  const canSchedule = user.role === "doctor" || user.role === "admin";
+  const canUsers = user.role === "admin";
 
   return (
     <aside className="sidebar">

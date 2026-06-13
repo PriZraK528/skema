@@ -7,11 +7,19 @@ JWT, роли, ручное расписание врача, онлайн-зап
 
 | Модуль | Возможности |
 |--------|-------------|
-| **Пользователи** | Регистрация, вход, refresh-токен, профиль; роли: `admin`, `doctor`, `patient`, `registrar` |
-| **Расписание** | Врач создаёт окна приёма вручную (`POST /api/doctors/{id}/schedule/slots`); без окон запись недоступна |
-| **Записи** | Запись, отмена, перенос, назначение врачом (`POST /api/appointments/assign`) |
-| **Уведомления** | О записи, переносе, отмене; cron-напоминания (`POST /api/notifications/reminders/run`) |
+| **Пользователи** | Регистрация, вход, refresh-токен, профиль; роли: `admin`, `doctor`, `patient` |
+| **Расписание** | Врач создаёт окна приёма вручную; админ выбирает врача (ФИО + специальность) и управляет его окнами |
+| **Записи** | Запись пациентом, отмена, назначение врачом/админом по ФИО пациента (`POST /api/appointments/assign`) |
+| **Уведомления** | О записи, отмене, изменении расписания; cron-напоминания (`POST /api/notifications/reminders/run`) |
 | **API** | OpenAPI `/docs`, JSON, пагинация, фильтры (`q`, `status`, `from`, `to`) |
+
+### Роли
+
+| Роль | Доступ |
+|------|--------|
+| `patient` | Запись к врачу, свои записи, профиль, уведомления |
+| `doctor` | Своё расписание, назначение записей по ФИО пациента, просмотр своих приёмов |
+| `admin` | Расписание любого врача, назначение записей, список пользователей |
 
 ## Структура проекта
 
@@ -22,12 +30,13 @@ skema/
 │   ├── entrypoint.sh           # миграции, seed, запуск API (Docker)
 │   ├── app/
 │   │   ├── main.py
-│   │   ├── models.py
+│   │   ├── models.py           # ORM-модели (users, doctors, patients, appointments…)
+│   │   ├── db.py               # подключение к PostgreSQL
 │   │   ├── security.py, deps.py, seed.py
-│   │   ├── routers/
+│   │   ├── routers/            # auth, users, doctors, patients, schedule, appointments, notifications
 │   │   ├── schemas/
 │   │   └── services/
-│   ├── alembic/
+│   ├── alembic/                # миграции БД
 │   ├── tests/
 │   ├── Dockerfile
 │   └── pyproject.toml
@@ -64,12 +73,9 @@ docker compose up --build
 |-------|------|
 | admin@clinic.example | admin |
 | doctor@clinic.example | doctor |
-| registrar@clinic.example | registrar |
 | patient@clinic.example | patient |
 
 ## Тестирование
-
-В контейнере backend или локально с установленными зависимостями:
 
 ```bash
 cd backend
@@ -84,11 +90,13 @@ pytest tests/test_schemathesis.py -q   # OpenAPI fuzzing, дольше
 |-------|------|----------|
 | POST | `/auth/register`, `/auth/login` | Регистрация / вход |
 | GET/PATCH | `/auth/me` | Профиль |
+| GET | `/users` | Список пользователей (admin) |
 | GET | `/doctors` | Список врачей (`q`) |
+| GET | `/patients` | Список пациентов для назначения |
 | GET/POST | `/doctors/{id}/schedule/slots` | Окна приёма |
 | DELETE | `/schedule/slots/{id}` | Удалить свободное окно |
 | GET | `/doctors/{id}/slots/free?from=&to=` | Свободные слоты |
 | GET/POST | `/appointments` | Записи |
-| POST | `/appointments/assign` | Назначение врачом |
-| POST | `/appointments/{id}/cancel`, `.../reschedule` | Отмена / перенос |
+| POST | `/appointments/assign` | Назначение по `patient_name` |
+| POST | `/appointments/{id}/cancel` | Отмена |
 | GET | `/notifications` | Уведомления |

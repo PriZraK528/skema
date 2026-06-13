@@ -1,11 +1,6 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, Appointment, Doctor, FreeSlot, User } from "../../api";
+import { api, Appointment, Doctor, FreeSlot, PatientBrief, User } from "../../api";
 import { StatusBadge } from "../ui/StatusBadge";
-
-function toDatetimeLocal(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
 
 interface AppointmentsPanelProps {
   user: User;
@@ -13,16 +8,17 @@ interface AppointmentsPanelProps {
 
 export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
+  const [patients, setPatients] = useState<PatientBrief[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [slots, setSlots] = useState<FreeSlot[]>([]);
   const [doctorId, setDoctorId] = useState(1);
   const [slot, setSlot] = useState("");
   const [note, setNote] = useState("");
-  const [patientId, setPatientId] = useState(1);
+  const [patientName, setPatientName] = useState("");
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
-  const [rescheduleId, setRescheduleId] = useState<number | null>(null);
-  const [rescheduleTime, setRescheduleTime] = useState("");
+
+  const staffView = user.role === "doctor" || user.role === "admin";
 
   const load = useCallback(async () => {
     const [d, a] = await Promise.all([
@@ -31,12 +27,17 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
     ]);
     setDoctors(d.items);
     setAppointments(a.items);
-    if (d.items.length) setDoctorId(d.items[0].id);
+    if (d.items.length) setDoctorId((prev) => d.items.some((x) => x.id === prev) ? prev : d.items[0].id);
   }, [search]);
 
   useEffect(() => {
     load().catch(console.error);
   }, [load]);
+
+  useEffect(() => {
+    if (!staffView) return;
+    api.patients().then(setPatients).catch(console.error);
+  }, [staffView]);
 
   const loadSlots = async () => {
     const from = new Date().toISOString().slice(0, 10);
@@ -44,14 +45,15 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
     const s = await api.freeSlots(doctorId, from, to);
     setSlots(s);
     if (s.length) setSlot(s[0].starts_at);
+    else setSlot("");
   };
 
   const book = async () => {
     setError("");
     try {
-      if (user.role === "doctor" || user.role === "admin" || user.role === "registrar") {
+      if (staffView) {
         await api.assign({
-          patient_id: patientId,
+          patient_name: patientName.trim(),
           doctor_id: doctorId,
           starts_at: slot,
           note,
@@ -59,31 +61,13 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
       } else {
         await api.book({ doctor_id: doctorId, starts_at: slot, note });
       }
+      setPatientName("");
+      setNote("");
       await load();
     } catch (e) {
       setError(e instanceof Error ? e.message : "Ошибка");
     }
   };
-
-  const startReschedule = (a: Appointment) => {
-    setRescheduleId(a.id);
-    setRescheduleTime(toDatetimeLocal(new Date(a.starts_at)));
-  };
-
-  const confirmReschedule = async () => {
-    if (rescheduleId == null) return;
-    setError("");
-    try {
-      await api.reschedule(rescheduleId, new Date(rescheduleTime).toISOString());
-      setRescheduleId(null);
-      await load();
-    } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка");
-    }
-  };
-
-  const staffBooking =
-    user.role === "doctor" || user.role === "admin" || user.role === "registrar";
 
   return (
     <>
@@ -96,6 +80,7 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
             <select
               value={doctorId}
               onChange={(e) => setDoctorId(Number(e.target.value))}
+              disabled={user.role === "doctor"}
             >
               {doctors.map((d) => (
                 <option key={d.id} value={d.id}>
@@ -112,26 +97,32 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
               </p>
             )}
             <label>Слот</label>
-            <select value={slot} onChange={(e) => setSlot(e.target.value)}>
+            <select value={slot} onChange={(e) => setSlot(e.target.value)} disabled={!slots.length}>
               {slots.map((s) => (
                 <option key={s.starts_at} value={s.starts_at}>
                   {new Date(s.starts_at).toLocaleString("ru-RU")}
                 </option>
               ))}
             </select>
-            {staffBooking && (
+            {staffView && (
               <>
-                <label>ID пациента</label>
+                <label>ФИО пациента</label>
                 <input
-                  type="number"
-                  value={patientId}
-                  onChange={(e) => setPatientId(Number(e.target.value))}
+                  list="patients-list"
+                  value={patientName}
+                  onChange={(e) => setPatientName(e.target.value)}
+                  placeholder="Например, Петров Пётр"
                 />
+                <datalist id="patients-list">
+                  {patients.map((p) => (
+                    <option key={p.id} value={p.full_name} />
+                  ))}
+                </datalist>
               </>
             )}
             <label>Комментарий</label>
             <input value={note} onChange={(e) => setNote(e.target.value)} />
-            <button type="button" className="primary" onClick={book}>
+            <button type="button" className="primary" onClick={book} disabled={!slot || (staffView && !patientName.trim())}>
               {user.role === "patient" ? "Записаться" : "Назначить приём"}
             </button>
           </div>
@@ -140,7 +131,11 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
       <div className="card">
         <h2>Мои записи</h2>
         <input
-          placeholder="Поиск..."
+          placeholder={
+            staffView
+              ? "Поиск по ФИО пациента, врача или комментарию..."
+              : "Поиск по врачу или комментарию..."
+          }
           value={search}
           onChange={(e) => setSearch(e.target.value)}
         />
@@ -148,6 +143,7 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
           <thead>
             <tr>
               <th>Дата</th>
+              {staffView && <th>Пациент</th>}
               <th>Врач</th>
               <th>Статус</th>
               <th></th>
@@ -157,6 +153,7 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
             {appointments.map((a) => (
               <tr key={a.id}>
                 <td>{new Date(a.starts_at).toLocaleString("ru-RU")}</td>
+                {staffView && <td>{a.patient_name ?? "—"}</td>}
                 <td>
                   {a.doctor_name} ({a.specialization})
                 </td>
@@ -164,42 +161,14 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
                   <StatusBadge status={a.status} />
                 </td>
                 <td>
-                  {a.status === "booked" && rescheduleId !== a.id && (
-                    <>
-                      <button
-                        type="button"
-                        className="ghost danger"
-                        onClick={() => api.cancel(a.id).then(load).catch((e) => setError(String(e)))}
-                      >
-                        Отменить
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => startReschedule(a)}
-                      >
-                        Перенести
-                      </button>
-                    </>
-                  )}
-                  {rescheduleId === a.id && (
-                    <div className="reschedule-inline">
-                      <input
-                        type="datetime-local"
-                        value={rescheduleTime}
-                        onChange={(e) => setRescheduleTime(e.target.value)}
-                      />
-                      <button type="button" className="primary" onClick={confirmReschedule}>
-                        Сохранить
-                      </button>
-                      <button
-                        type="button"
-                        className="ghost"
-                        onClick={() => setRescheduleId(null)}
-                      >
-                        Отмена
-                      </button>
-                    </div>
+                  {a.status === "booked" && (
+                    <button
+                      type="button"
+                      className="ghost danger"
+                      onClick={() => api.cancel(a.id).then(load).catch((e) => setError(String(e)))}
+                    >
+                      Отменить
+                    </button>
                   )}
                 </td>
               </tr>
