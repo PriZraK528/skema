@@ -1,10 +1,14 @@
 import { useEffect, useState } from "react";
 import { api, AvailabilitySlot, Doctor, User } from "../../api";
-
-function toDatetimeLocal(d: Date): string {
-  const pad = (n: number) => String(n).padStart(2, "0");
-  return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}T${pad(d.getHours())}:${pad(d.getMinutes())}`;
-}
+import {
+  DEFAULT_SLOT_DURATION_MINUTES,
+  GENERIC_ERROR_RU,
+  MAX_SLOT_DURATION_MINUTES,
+  MIN_SLOT_DURATION_MINUTES,
+  MS_PER_DAY,
+} from "../../constants";
+import { formatDateTime, toDatetimeLocal } from "../../utils/datetime";
+import { isAdmin } from "../../utils/roles";
 
 interface SchedulePanelProps {
   user: User;
@@ -15,13 +19,13 @@ export function SchedulePanel({ user }: SchedulePanelProps) {
   const [doctorId, setDoctorId] = useState(1);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [startsAt, setStartsAt] = useState(() =>
-    toDatetimeLocal(new Date(Date.now() + 86400000)),
+    toDatetimeLocal(new Date(Date.now() + MS_PER_DAY)),
   );
-  const [duration, setDuration] = useState(30);
+  const [duration, setDuration] = useState(DEFAULT_SLOT_DURATION_MINUTES);
   const [msg, setMsg] = useState("");
   const [error, setError] = useState("");
 
-  const isAdmin = user.role === "admin";
+  const adminView = isAdmin(user);
 
   const loadSlots = async (id: number) => {
     setSlots(await api.availabilitySlots(id));
@@ -58,7 +62,7 @@ export function SchedulePanel({ user }: SchedulePanelProps) {
       setMsg("Окно для записи создано");
       await loadSlots(doctorId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка");
+      setError(e instanceof Error ? e.message : GENERIC_ERROR_RU);
     }
   };
 
@@ -69,7 +73,7 @@ export function SchedulePanel({ user }: SchedulePanelProps) {
       setMsg("Окно удалено");
       await loadSlots(doctorId);
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка");
+      setError(e instanceof Error ? e.message : GENERIC_ERROR_RU);
     }
   };
 
@@ -77,11 +81,11 @@ export function SchedulePanel({ user }: SchedulePanelProps) {
 
   return (
     <div className="card">
-      <h2>{isAdmin ? "Расписание врача" : "Мои окна для записи"}</h2>
+      <h2>{adminView ? "Расписание врача" : "Мои окна для записи"}</h2>
       <p className="muted">
         Пациенты видят только те слоты, которые врач создал здесь. По умолчанию свободных окон нет.
       </p>
-      {isAdmin && (
+      {adminView && (
         <>
           <label>Врач</label>
           <select
@@ -114,8 +118,8 @@ export function SchedulePanel({ user }: SchedulePanelProps) {
           <label>Длительность (мин)</label>
           <input
             type="number"
-            min={5}
-            max={480}
+            min={MIN_SLOT_DURATION_MINUTES}
+            max={MAX_SLOT_DURATION_MINUTES}
             value={duration}
             onChange={(e) => setDuration(Number(e.target.value))}
           />
@@ -143,8 +147,8 @@ export function SchedulePanel({ user }: SchedulePanelProps) {
           )}
           {slots.map((s) => (
             <tr key={s.id}>
-              <td>{new Date(s.starts_at).toLocaleString("ru-RU")}</td>
-              <td>{new Date(s.ends_at).toLocaleString("ru-RU")}</td>
+              <td>{formatDateTime(s.starts_at)}</td>
+              <td>{formatDateTime(s.ends_at)}</td>
               <td>
                 <span className={`badge ${s.is_booked ? "cancelled" : "booked"}`}>
                   {s.is_booked ? "Занято" : "Свободно"}

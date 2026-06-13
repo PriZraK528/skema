@@ -27,6 +27,7 @@ services:
       JWT_ACCESS_TOKEN_EXPIRES_MINUTES: 30
       JWT_REFRESH_TOKEN_EXPIRES_DAYS: 14
       CORS_ORIGINS: http://localhost:5173
+      CLINIC_REGISTRATION_KEY: clinic-demo-key
       SEED_ON_STARTUP: "true"
     depends_on:
       db:

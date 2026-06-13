@@ -6,6 +6,12 @@ from fastapi import HTTPException, status
 from sqlalchemy import or_, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants import (
+    ErrorDetail,
+    NOTIFICATION_TITLE_BOOKED,
+    NOTIFICATION_TITLE_CANCELLED,
+    NOTIFICATION_TITLE_NEW_APPOINTMENT,
+)
 from app.models import (
     Appointment,
     AppointmentStatus,
@@ -25,7 +31,7 @@ def _ends_at_from_availability(db: Session, doctor_id: int, starts_at: datetime)
 
     slot = get_availability_slot(db, doctor_id, starts_at)
     if not slot:
-        raise HTTPException(status_code=409, detail="Selected time slot is not available")
+        raise HTTPException(status_code=409, detail=ErrorDetail.SLOT_NOT_AVAILABLE)
     return _normalize_dt(slot.ends_at)
 
 
@@ -38,7 +44,6 @@ def enrich_appointment(appointment: Appointment) -> AppointmentOut:
         ends_at=appointment.ends_at,
         status=appointment.status,
         note=appointment.note,
-        rescheduled_from_id=appointment.rescheduled_from_id,
         created_at=appointment.created_at,
         updated_at=appointment.updated_at,
         patient_name=appointment.patient.full_name if appointment.patient else None,
@@ -54,7 +59,10 @@ def load_appointment(db: Session, appointment_id: int) -> Appointment:
         .where(Appointment.id == appointment_id)
     )
     if not appointment:
-        raise HTTPException(status_code=status.HTTP_404_NOT_FOUND, detail="Appointment not found")
+        raise HTTPException(
+            status_code=status.HTTP_404_NOT_FOUND,
+            detail=ErrorDetail.APPOINTMENT_NOT_FOUND,
+        )
     return appointment
 
 
@@ -66,17 +74,17 @@ def resolve_patient_id(
 ) -> int:
     if user.role == UserRole.patient:
         if not user.patient:
-            raise HTTPException(status_code=400, detail="Patient profile missing")
+            raise HTTPException(status_code=400, detail=ErrorDetail.PATIENT_PROFILE_MISSING)
         if patient_id and patient_id != user.patient.id:
-            raise HTTPException(status_code=403, detail="Cannot book for another patient")
+            raise HTTPException(status_code=403, detail=ErrorDetail.CANNOT_BOOK_FOR_OTHER)
         return user.patient.id
     if patient_id is not None:
         patient = db.get(Patient, patient_id)
         if not patient:
-            raise HTTPException(status_code=404, detail="Patient not found")
+            raise HTTPException(status_code=404, detail=ErrorDetail.PATIENT_NOT_FOUND)
         return patient_id
     if not patient_name or not patient_name.strip():
-        raise HTTPException(status_code=400, detail="patient_name is required")
+        raise HTTPException(status_code=400, detail=ErrorDetail.PATIENT_NAME_REQUIRED)
     name = patient_name.strip()
     exact = db.scalars(select(Patient).where(Patient.full_name.ilike(name))).all()
     exact_matches = [p for p in exact if p.full_name.lower() == name.lower()]
@@ -84,9 +92,9 @@ def resolve_patient_id(
         return exact_matches[0].id
     matches = db.scalars(select(Patient).where(Patient.full_name.ilike(f"%{name}%"))).all()
     if not matches:
-        raise HTTPException(status_code=404, detail="Patient not found")
+        raise HTTPException(status_code=404, detail=ErrorDetail.PATIENT_NOT_FOUND)
     if len(matches) > 1:
-        raise HTTPException(status_code=400, detail="Multiple patients match this name")
+        raise HTTPException(status_code=400, detail=ErrorDetail.MULTIPLE_PATIENTS_MATCH)
     return matches[0].id
 
 
@@ -106,17 +114,17 @@ def create_appointment(
 
     doctor = db.get(Doctor, doctor_id)
     if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found")
+        raise HTTPException(status_code=404, detail=ErrorDetail.DOCTOR_NOT_FOUND)
 
     if user.role == UserRole.doctor and user.doctor and user.doctor.id != doctor_id:
         if patient_id is None:
-            raise HTTPException(status_code=403, detail="Doctor can only use own schedule when assigning")
+            raise HTTPException(status_code=403, detail=ErrorDetail.DOCTOR_OWN_SCHEDULE_ONLY)
 
     pid = resolve_patient_id(db, user, patient_id, patient_name)
     ends_at = _ends_at_from_availability(db, doctor_id, starts_at)
 
     if not is_slot_available(db, doctor_id, starts_at, ends_at):
-        raise HTTPException(status_code=409, detail="Selected time slot is not available")
+        raise HTTPException(status_code=409, detail=ErrorDetail.SLOT_NOT_AVAILABLE)
 
     appointment = Appointment(
         patient_id=pid,
@@ -131,13 +139,13 @@ def create_appointment(
 
     patient = db.get(Patient, pid)
     if not patient:
-        raise HTTPException(status_code=404, detail="Patient not found")
+        raise HTTPException(status_code=404, detail=ErrorDetail.PATIENT_NOT_FOUND)
     msg = f"Запись на приём {starts_at.isoformat()} к врачу {doctor.full_name}"
     create_notification(
         db,
         user_id=patient.user_id,
         ntype=NotificationType.appointment_booked,
-        title="Запись подтверждена",
+        title=NOTIFICATION_TITLE_BOOKED,
         message=msg,
         appointment_id=appointment.id,
     )
@@ -145,7 +153,7 @@ def create_appointment(
         db,
         user_id=doctor.user_id,
         ntype=NotificationType.appointment_booked,
-        title="Новая запись",
+        title=NOTIFICATION_TITLE_NEW_APPOINTMENT,
         message=msg,
         appointment_id=appointment.id,
     )
@@ -156,7 +164,7 @@ def create_appointment(
 
 def cancel_appointment(db: Session, appointment: Appointment, user: User) -> Appointment:
     if appointment.status != AppointmentStatus.booked:
-        raise HTTPException(status_code=400, detail="Only booked appointments can be cancelled")
+        raise HTTPException(status_code=400, detail=ErrorDetail.ONLY_BOOKED_CAN_CANCEL)
     _check_access(appointment, user, write=True)
     appointment.status = AppointmentStatus.cancelled
     appointment.updated_at = datetime.now(timezone.utc)
@@ -166,7 +174,7 @@ def cancel_appointment(db: Session, appointment: Appointment, user: User) -> App
             db,
             user_id=uid,
             ntype=NotificationType.appointment_cancelled,
-            title="Запись отменена",
+            title=NOTIFICATION_TITLE_CANCELLED,
             message=msg,
             appointment_id=appointment.id,
         )
@@ -181,7 +189,7 @@ def _check_access(appointment: Appointment, user: User, write: bool = False) -> 
         return
     if user.role == UserRole.doctor and user.doctor and appointment.doctor_id == user.doctor.id:
         return
-    raise HTTPException(status_code=403, detail="Access denied")
+    raise HTTPException(status_code=403, detail=ErrorDetail.ACCESS_DENIED)
 
 
 def list_appointments_query(db: Session, user: User):  # noqa: ANN201

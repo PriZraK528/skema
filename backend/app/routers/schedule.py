@@ -6,6 +6,11 @@ from fastapi import APIRouter, Depends, HTTPException, Query, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.constants import (
+    ErrorDetail,
+    FREE_SLOTS_DEFAULT_RANGE_DAYS,
+    NOTIFICATION_TITLE_SCHEDULE_CHANGED,
+)
 from app.db import get_db
 from app.deps import get_current_user, require_roles
 from app.models import Doctor, DoctorAvailabilitySlot, NotificationType, User, UserRole
@@ -13,7 +18,6 @@ from app.schemas.common import MessageResponse
 from app.schemas.schedule import AvailabilitySlotCreate, AvailabilitySlotOut, FreeSlotOut
 from app.services.notifications import notify_users
 from app.services.schedule import (
-    compute_free_slots,
     create_availability_slot,
     delete_availability_slot,
     get_booked_ranges,
@@ -26,16 +30,8 @@ router = APIRouter(tags=["schedule"])
 def _get_doctor_or_404(db: Session, doctor_id: int) -> Doctor:
     doctor = db.get(Doctor, doctor_id)
     if not doctor:
-        raise HTTPException(status_code=404, detail="Doctor not found")
+        raise HTTPException(status_code=404, detail=ErrorDetail.DOCTOR_NOT_FOUND)
     return doctor
-
-
-def _resolve_doctor_id(db: Session, user: User, doctor_id: int | None) -> int:
-    if user.role == UserRole.doctor and user.doctor:
-        return user.doctor.id
-    if doctor_id is None:
-        raise HTTPException(status_code=400, detail="doctor_id required")
-    return doctor_id
 
 
 def _ensure_schedule_access(doctor: Doctor, user: User, write: bool = False) -> None:
@@ -45,7 +41,7 @@ def _ensure_schedule_access(doctor: Doctor, user: User, write: bool = False) -> 
         return
     if not write:
         return
-    raise HTTPException(status_code=403, detail="Cannot modify this schedule")
+    raise HTTPException(status_code=403, detail=ErrorDetail.CANNOT_MODIFY_SCHEDULE)
 
 
 def _slot_to_out(slot: DoctorAvailabilitySlot, booked: list[tuple[datetime, datetime]]) -> AvailabilitySlotOut:
@@ -113,7 +109,7 @@ def remove_availability_slot(
 ):
     slot = db.get(DoctorAvailabilitySlot, slot_id)
     if not slot:
-        raise HTTPException(status_code=404, detail="Slot not found")
+        raise HTTPException(status_code=404, detail=ErrorDetail.SLOT_NOT_FOUND)
     doctor = _get_doctor_or_404(db, slot.doctor_id)
     _ensure_schedule_access(doctor, user, write=True)
     delete_availability_slot(db, slot)
@@ -133,9 +129,9 @@ def free_slots(
     """Свободные окна — только те, что врач создал и которые ещё не заняты."""
     doctor = _get_doctor_or_404(db, doctor_id)
     if to_date is None:
-        to_date = from_date + timedelta(days=60)
+        to_date = from_date + timedelta(days=FREE_SLOTS_DEFAULT_RANGE_DAYS)
     if to_date < from_date:
-        raise HTTPException(status_code=400, detail="'to' must be >= 'from'")
+        raise HTTPException(status_code=400, detail=ErrorDetail.DATE_RANGE_INVALID)
 
     slots = list_availability_slots(
         db, doctor.id, from_date=from_date, to_date=to_date, only_free=True
@@ -173,6 +169,6 @@ def _notify_schedule_change(db: Session, doctor: Doctor, message: str) -> None:
         db,
         [u for u in users if u],
         ntype=NotificationType.schedule_changed,
-        title="Изменение расписания",
+        title=NOTIFICATION_TITLE_SCHEDULE_CHANGED,
         message=message,
     )

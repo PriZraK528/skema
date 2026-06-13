@@ -1,9 +1,10 @@
 from __future__ import annotations
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session, joinedload
 
+from app.constants import DEFAULT_PAGE_LIMIT, ErrorDetail, MAX_PAGE_LIMIT
 from app.db import get_db
 from app.deps import get_current_user
 from app.models import Doctor, User
@@ -17,7 +18,7 @@ router = APIRouter(prefix="/doctors", tags=["doctors"])
 def list_doctors(
     q: str | None = Query(default=None, description="Search by name or specialization"),
     specialization: str | None = None,
-    limit: int = Query(default=20, ge=1, le=100),
+    limit: int = Query(default=DEFAULT_PAGE_LIMIT, ge=1, le=MAX_PAGE_LIMIT),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
@@ -55,9 +56,7 @@ def get_doctor(
         select(Doctor).options(joinedload(Doctor.user)).where(Doctor.id == doctor_id)
     )
     if not doctor:
-        from fastapi import HTTPException
-
-        raise HTTPException(status_code=404, detail="Doctor not found")
+        raise HTTPException(status_code=404, detail=ErrorDetail.DOCTOR_NOT_FOUND)
     return DoctorOut(
         id=doctor.id,
         user_id=doctor.user_id,

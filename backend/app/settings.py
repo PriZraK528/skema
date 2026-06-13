@@ -18,6 +18,9 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
+    # Required when registering as a doctor (shared with clinic staff).
+    clinic_registration_key: str = "clinic-demo-key"
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

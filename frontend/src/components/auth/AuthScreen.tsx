@@ -1,5 +1,11 @@
-import { FormEvent, useState } from "react";
+import { FormEvent, useEffect, useState } from "react";
 import { api, User, UserRole } from "../../api";
+import {
+  GENERIC_ERROR_RU,
+  OTHER_SPECIALIZATION,
+  SEED_PASSWORD,
+  SEED_PATIENT_EMAIL,
+} from "../../constants";
 
 interface AuthScreenProps {
   onAuth: (user: User, access: string, refresh: string) => void;
@@ -8,33 +14,53 @@ interface AuthScreenProps {
 export function AuthScreen({ onAuth }: AuthScreenProps) {
   const [mode, setMode] = useState<"login" | "register">("login");
   const [error, setError] = useState("");
+  const [specializations, setSpecializations] = useState<string[]>([]);
   const [form, setForm] = useState({
     email: "",
     password: "",
     full_name: "",
     phone: "",
     role: "patient" as UserRole,
+    specialization: "",
+    customSpecialization: "",
+    clinicKey: "",
   });
+
+  useEffect(() => {
+    if (mode === "register") {
+      api.specializations().then(setSpecializations).catch(console.error);
+    }
+  }, [mode]);
 
   const submit = async (e: FormEvent) => {
     e.preventDefault();
     setError("");
     try {
+      const payload: Record<string, unknown> = {
+        email: form.email,
+        password: form.password,
+        full_name: form.full_name,
+        phone: form.phone,
+        role: form.role,
+      };
+      if (form.role === "doctor") {
+        payload.specialization =
+          form.specialization === OTHER_SPECIALIZATION
+            ? form.customSpecialization.trim()
+            : form.specialization;
+        payload.clinic_key = form.clinicKey.trim();
+      }
       const res =
         mode === "login"
           ? await api.login(form.email, form.password)
-          : await api.register({
-              email: form.email,
-              password: form.password,
-              full_name: form.full_name,
-              phone: form.phone,
-              role: form.role,
-            });
+          : await api.register(payload);
       onAuth(res.user, res.access_token, res.refresh_token);
     } catch (err) {
-      setError(err instanceof Error ? err.message : "Ошибка");
+      setError(err instanceof Error ? err.message : GENERIC_ERROR_RU);
     }
   };
+
+  const isDoctorRegister = mode === "register" && form.role === "doctor";
 
   return (
     <div className="auth-wrap">
@@ -85,6 +111,50 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
                 <option value="patient">Пациент</option>
                 <option value="doctor">Врач</option>
               </select>
+              {isDoctorRegister && (
+                <>
+                  <label>Специальность</label>
+                  <select
+                    required
+                    value={form.specialization}
+                    onChange={(e) =>
+                      setForm({ ...form, specialization: e.target.value })
+                    }
+                  >
+                    <option value="">Выберите специальность</option>
+                    {specializations.map((s) => (
+                      <option key={s} value={s}>
+                        {s}
+                      </option>
+                    ))}
+                    <option value={OTHER_SPECIALIZATION}>Другое</option>
+                  </select>
+                  {form.specialization === OTHER_SPECIALIZATION && (
+                    <>
+                      <label>Своя специальность</label>
+                      <input
+                        required
+                        value={form.customSpecialization}
+                        onChange={(e) =>
+                          setForm({ ...form, customSpecialization: e.target.value })
+                        }
+                        placeholder="Например, ревматолог"
+                      />
+                    </>
+                  )}
+                  <label>Ключ клиники</label>
+                  <input
+                    required
+                    type="password"
+                    value={form.clinicKey}
+                    onChange={(e) => setForm({ ...form, clinicKey: e.target.value })}
+                    placeholder="Выдаётся администратором клиники"
+                  />
+                  <p className="muted">
+                    Регистрация врача доступна только с ключом клиники.
+                  </p>
+                </>
+              )}
             </>
           )}
           <button type="submit" className="primary">
@@ -104,11 +174,9 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           </a>
         </p>
         <p className="muted" style={{ marginTop: "0.5rem" }}>
-          Демо: patient@clinic.example / Password123!
+          Демо: {SEED_PATIENT_EMAIL} / {SEED_PASSWORD}
         </p>
       </div>
     </div>
   );
 }
-
-

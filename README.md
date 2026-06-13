@@ -10,7 +10,7 @@ JWT, роли, ручное расписание врача, онлайн-зап
 | **Пользователи** | Регистрация, вход, refresh-токен, профиль; роли: `admin`, `doctor`, `patient` |
 | **Расписание** | Врач создаёт окна приёма вручную; админ выбирает врача (ФИО + специальность) и управляет его окнами |
 | **Записи** | Запись пациентом, отмена, назначение врачом/админом по ФИО пациента (`POST /api/appointments/assign`) |
-| **Уведомления** | О записи, отмене, изменении расписания; cron-напоминания (`POST /api/notifications/reminders/run`) |
+| **Уведомления** | О записи, отмене, изменении расписания; счётчик непрочитанных в меню; cron-напоминания (`POST /api/notifications/reminders/run`) |
 | **API** | OpenAPI `/docs`, JSON, пагинация, фильтры (`q`, `status`, `from`, `to`) |
 
 ### Роли
@@ -29,6 +29,7 @@ skema/
 ├── backend/
 │   ├── entrypoint.sh           # миграции, seed, запуск API (Docker)
 │   ├── app/
+│   │   ├── constants.py        # специальности, seed, ошибки, лимиты
 │   │   ├── main.py
 │   │   ├── models.py           # ORM-модели (users, doctors, patients, appointments…)
 │   │   ├── db.py               # подключение к PostgreSQL
@@ -44,6 +45,8 @@ skema/
     ├── src/
     │   ├── App.tsx             # маршрутизация вкладок и auth
     │   ├── api.ts
+    │   ├── constants.ts        # лимиты, подписи ролей, перевод ошибок
+    │   ├── utils/              # roles.ts, datetime.ts
     │   ├── styles.css
     │   └── components/
     │       ├── auth/AuthScreen.tsx
@@ -89,6 +92,7 @@ pytest tests/test_schemathesis.py -q   # OpenAPI fuzzing, дольше
 | Метод | Путь | Описание |
 |-------|------|----------|
 | POST | `/auth/register`, `/auth/login` | Регистрация / вход |
+| GET | `/auth/specializations` | Список специальностей для регистрации врача |
 | GET/PATCH | `/auth/me` | Профиль |
 | GET | `/users` | Список пользователей (admin) |
 | GET | `/doctors` | Список врачей (`q`) |
@@ -100,3 +104,4 @@ pytest tests/test_schemathesis.py -q   # OpenAPI fuzzing, дольше
 | POST | `/appointments/assign` | Назначение по `patient_name` |
 | POST | `/appointments/{id}/cancel` | Отмена |
 | GET | `/notifications` | Уведомления |
+| GET | `/notifications/unread-count` | Число непрочитанных |

@@ -107,9 +107,6 @@ class Appointment(Base):
         nullable=False,
     )
     note: Mapped[Optional[str]] = mapped_column(String(500), nullable=True)
-    rescheduled_from_id: Mapped[Optional[int]] = mapped_column(
-        ForeignKey("appointments.id", ondelete="SET NULL"), nullable=True
-    )
     created_at: Mapped[datetime] = mapped_column(DateTime(timezone=True), default=datetime.utcnow)
     updated_at: Mapped[datetime] = mapped_column(
         DateTime(timezone=True), default=datetime.utcnow, onupdate=datetime.utcnow
@@ -123,7 +120,6 @@ class NotificationType(str, enum.Enum):
     appointment_booked = "appointment_booked"
     appointment_reminder = "appointment_reminder"
     appointment_cancelled = "appointment_cancelled"
-    appointment_rescheduled = "appointment_rescheduled"
     schedule_changed = "schedule_changed"
 
 

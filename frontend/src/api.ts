@@ -1,26 +1,17 @@
-const API_BASE = import.meta.env.VITE_API_BASE_URL ?? "http://localhost:8000";
+import {
+  API_BASE_DEFAULT,
+  API_ERRORS,
+  DEFAULT_LIST_LIMIT,
+  GENERIC_ERROR_RU,
+  type UserRole,
+} from "./constants";
 
-const API_ERRORS: Record<string, string> = {
-  "Not authenticated": "Требуется авторизация",
-  "Invalid token": "Недействительный токен",
-  "Invalid credentials": "Неверный email или пароль",
-  "Insufficient permissions": "Недостаточно прав",
-  "Doctor not found": "Врач не найден",
-  "Patient not found": "Пациент не найден",
-  "Appointment not found": "Запись не найдена",
-  "Selected time slot is not available": "Выбранное время недоступно для записи",
-  "Cannot create slots in the past": "Нельзя создать окно в прошлом",
-  "Slot at this time already exists": "Окно на это время уже существует",
-  "Overlaps with another availability slot": "Пересечение с другим окном",
-  "Cannot delete slot with an active appointment": "Нельзя удалить окно с активной записью",
-  "Email already registered": "Email уже зарегистрирован",
-  "Access denied": "Доступ запрещён",
-  "Multiple patients match this name": "Найдено несколько пациентов с таким именем",
-  "patient_name is required": "Укажите ФИО пациента",
-};
+export type { UserRole };
+
+const API_BASE = import.meta.env.VITE_API_BASE_URL ?? API_BASE_DEFAULT;
 
 function errorMessage(detail: unknown): string {
-  if (detail == null) return "Произошла ошибка";
+  if (detail == null) return GENERIC_ERROR_RU;
   if (typeof detail === "string") return API_ERRORS[detail] ?? detail;
   if (Array.isArray(detail)) {
     return detail
@@ -33,8 +24,6 @@ function errorMessage(detail: unknown): string {
   }
   return String(detail);
 }
-
-export type UserRole = "admin" | "doctor" | "patient";
 
 export interface User {
   id: number;
@@ -135,6 +124,8 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json();
 }
 
+const listLimit = `limit=${DEFAULT_LIST_LIMIT}`;
+
 export const api = {
   login: (email: string, password: string) =>
     request<AuthResponse>("/api/auth/login", {
@@ -146,11 +137,12 @@ export const api = {
       method: "POST",
       body: JSON.stringify(data),
     }),
+  specializations: () => request<string[]>("/api/auth/specializations"),
   me: () => request<User>("/api/auth/me"),
   updateProfile: (data: Record<string, unknown>) =>
     request<User>("/api/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
   doctors: (q?: string) =>
-    request<Paginated<Doctor>>(`/api/doctors?limit=50${q ? `&q=${encodeURIComponent(q)}` : ""}`),
+    request<Paginated<Doctor>>(`/api/doctors?${listLimit}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
   freeSlots: (doctorId: number, from: string, to?: string) =>
     request<FreeSlot[]>(
       `/api/doctors/${doctorId}/slots/free?from=${from}${to ? `&to=${to}` : ""}`,
@@ -165,7 +157,7 @@ export const api = {
   deleteAvailabilitySlot: (slotId: number) =>
     request<{ message: string }>(`/api/schedule/slots/${slotId}`, { method: "DELETE" }),
   appointments: (params?: string) =>
-    request<Paginated<Appointment>>(`/api/appointments?limit=50${params ?? ""}`),
+    request<Paginated<Appointment>>(`/api/appointments?${listLimit}${params ?? ""}`),
   book: (data: Record<string, unknown>) =>
     request<Appointment>("/api/appointments", {
       method: "POST",
@@ -178,11 +170,13 @@ export const api = {
     }),
   cancel: (id: number) =>
     request<Appointment>(`/api/appointments/${id}/cancel`, { method: "POST" }),
+  unreadNotificationsCount: () =>
+    request<{ count: number }>("/api/notifications/unread-count"),
   patients: (q?: string) =>
-    request<PatientBrief[]>(`/api/patients?limit=50${q ? `&q=${encodeURIComponent(q)}` : ""}`),
+    request<PatientBrief[]>(`/api/patients?${listLimit}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
   notifications: (unreadOnly = false) =>
     request<Paginated<Notification>>(
-      `/api/notifications?limit=50${unreadOnly ? "&unread_only=true" : ""}`,
+      `/api/notifications?${listLimit}${unreadOnly ? "&unread_only=true" : ""}`,
     ),
   markNotification: (id: number) =>
     request<Notification>(`/api/notifications/${id}`, {
@@ -190,5 +184,5 @@ export const api = {
       body: JSON.stringify({ is_read: true }),
     }),
   users: (q?: string) =>
-    request<Paginated<User>>(`/api/users?limit=50${q ? `&q=${encodeURIComponent(q)}` : ""}`),
+    request<Paginated<User>>(`/api/users?${listLimit}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
 };

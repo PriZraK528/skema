@@ -5,15 +5,29 @@ import { Sidebar, type Tab } from "./Sidebar";
 interface AppLayoutProps {
   user: User;
   tab: Tab;
+  unreadCount: number;
   onTabChange: (tab: Tab) => void;
   onLogout: () => void;
   children: ReactNode;
 }
 
-export function AppLayout({ user, tab, onTabChange, onLogout, children }: AppLayoutProps) {
+export function AppLayout({
+  user,
+  tab,
+  unreadCount,
+  onTabChange,
+  onLogout,
+  children,
+}: AppLayoutProps) {
   return (
     <div className="layout">
-      <Sidebar tab={tab} user={user} onTabChange={onTabChange} onLogout={onLogout} />
+      <Sidebar
+        tab={tab}
+        user={user}
+        unreadCount={unreadCount}
+        onTabChange={onTabChange}
+        onLogout={onLogout}
+      />
       <main className="main">{children}</main>
     </div>
   );

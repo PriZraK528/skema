@@ -6,6 +6,7 @@ import pytest
 from hypothesis import given, settings
 from hypothesis import strategies as st
 
+from app.constants import SEED_PASSWORD
 from app.models import UserRole
 from app.schemas.auth import RegisterRequest
 
@@ -18,7 +19,7 @@ def test_register_role_rejects_unknown_strings(role: str):
     with pytest.raises(Exception):
         RegisterRequest(
             email="fuzz@example.com",
-            password="Password123!",
+            password=SEED_PASSWORD,
             role=role,  # type: ignore[arg-type]
             full_name="Fuzz User",
             phone="+79990000000",

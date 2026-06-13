@@ -29,11 +29,6 @@ class AppointmentAssign(BaseModel):
         return self
 
 
-class AppointmentUpdate(BaseModel):
-    status: AppointmentStatus | None = None
-    note: str | None = Field(default=None, max_length=500)
-
-
 class AppointmentOut(ORMModel):
     id: int
     patient_id: int
@@ -42,7 +37,6 @@ class AppointmentOut(ORMModel):
     ends_at: datetime
     status: AppointmentStatus
     note: str | None
-    rescheduled_from_id: int | None
     created_at: datetime
     updated_at: datetime
     patient_name: str | None = None

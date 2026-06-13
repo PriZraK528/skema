@@ -1,5 +1,5 @@
-import { useState } from "react";
-import { User } from "./api";
+import { useCallback, useEffect, useState } from "react";
+import { api, User } from "./api";
 import { AuthScreen } from "./components/auth/AuthScreen";
 import { AppointmentsPanel } from "./components/appointments/AppointmentsPanel";
 import { SchedulePanel } from "./components/schedule/SchedulePanel";
@@ -7,6 +7,8 @@ import { NotificationsPanel } from "./components/notifications/NotificationsPane
 import { ProfilePanel } from "./components/profile/ProfilePanel";
 import { UsersPanel } from "./components/users/UsersPanel";
 import { AppLayout } from "./components/layout/AppLayout";
+import { UNREAD_POLL_INTERVAL_MS } from "./constants";
+import { canManageSchedule, isAdmin } from "./utils/roles";
 import type { Tab } from "./components/layout/Sidebar";
 
 export default function App() {
@@ -15,6 +17,21 @@ export default function App() {
     return raw ? (JSON.parse(raw) as User) : null;
   });
   const [tab, setTab] = useState<Tab>("appointments");
+  const [unreadCount, setUnreadCount] = useState(0);
+
+  const refreshUnreadCount = useCallback(() => {
+    api
+      .unreadNotificationsCount()
+      .then((r) => setUnreadCount(r.count))
+      .catch(() => setUnreadCount(0));
+  }, []);
+
+  useEffect(() => {
+    if (!user) return;
+    refreshUnreadCount();
+    const id = window.setInterval(refreshUnreadCount, UNREAD_POLL_INTERVAL_MS);
+    return () => window.clearInterval(id);
+  }, [user, refreshUnreadCount]);
 
   const onAuth = (u: User, access: string, refresh: string) => {
     localStorage.setItem("user", JSON.stringify(u));
@@ -26,18 +43,27 @@ export default function App() {
   const logout = () => {
     localStorage.clear();
     setUser(null);
+    setUnreadCount(0);
   };
 
   if (!user) return <AuthScreen onAuth={onAuth} />;
 
-  const canSchedule = user.role === "doctor" || user.role === "admin";
-  const canUsers = user.role === "admin";
+  const canSchedule = canManageSchedule(user);
+  const canUsers = isAdmin(user);
 
   return (
-    <AppLayout user={user} tab={tab} onTabChange={setTab} onLogout={logout}>
+    <AppLayout
+      user={user}
+      tab={tab}
+      unreadCount={unreadCount}
+      onTabChange={setTab}
+      onLogout={logout}
+    >
       {tab === "appointments" && <AppointmentsPanel user={user} />}
       {tab === "schedule" && canSchedule && <SchedulePanel user={user} />}
-      {tab === "notifications" && <NotificationsPanel />}
+      {tab === "notifications" && (
+        <NotificationsPanel onUnreadChange={refreshUnreadCount} />
+      )}
       {tab === "profile" && (
         <ProfilePanel
           user={user}

@@ -4,9 +4,8 @@ from typing import Any
 import bcrypt
 from jose import JWTError, jwt
 
+from app.constants import JWT_ALGORITHM, TOKEN_TYPE_ACCESS, TOKEN_TYPE_REFRESH
 from app.settings import settings
-
-ALGORITHM = "HS256"
 
 
 def hash_password(password: str) -> str:
@@ -25,14 +24,14 @@ def _create_token(subject: str, expires_delta: timedelta, token_type: str) -> st
         "iat": now,
         "exp": now + expires_delta,
     }
-    return jwt.encode(payload, settings.jwt_secret_key, algorithm=ALGORITHM)
+    return jwt.encode(payload, settings.jwt_secret_key, algorithm=JWT_ALGORITHM)
 
 
 def create_access_token(user_id: int) -> str:
     return _create_token(
         str(user_id),
         timedelta(minutes=settings.jwt_access_token_expires_minutes),
-        "access",
+        TOKEN_TYPE_ACCESS,
     )
 
 
@@ -40,9 +39,9 @@ def create_refresh_token(user_id: int) -> str:
     return _create_token(
         str(user_id),
         timedelta(days=settings.jwt_refresh_token_expires_days),
-        "refresh",
+        TOKEN_TYPE_REFRESH,
     )
 
 
 def decode_token(token: str) -> dict[str, Any]:
-    return jwt.decode(token, settings.jwt_secret_key, algorithms=[ALGORITHM])
+    return jwt.decode(token, settings.jwt_secret_key, algorithms=[JWT_ALGORITHM])

@@ -4,13 +4,19 @@ from datetime import datetime
 
 from pydantic import BaseModel, Field, model_validator
 
+from app.constants import (
+    MAX_SLOT_DURATION_MINUTES,
+    MIN_SLOT_DURATION_MINUTES,
+)
 from app.schemas.common import ORMModel
 
 
 class AvailabilitySlotCreate(BaseModel):
     starts_at: datetime
     ends_at: datetime | None = None
-    duration_minutes: int | None = Field(default=None, ge=5, le=480)
+    duration_minutes: int | None = Field(
+        default=None, ge=MIN_SLOT_DURATION_MINUTES, le=MAX_SLOT_DURATION_MINUTES
+    )
 
     @model_validator(mode="after")
     def validate_interval(self):

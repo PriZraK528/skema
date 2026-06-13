@@ -3,10 +3,13 @@ from datetime import datetime, timedelta, timezone
 from fastapi.testclient import TestClient
 
 
+from app.constants import SEED_PASSWORD
+
+
 def _login(client: TestClient, email: str) -> str:
     r = client.post(
         "/api/auth/login",
-        json={"email": email, "password": "Password123!"},
+        json={"email": email, "password": SEED_PASSWORD},
     )
     return r.json()["access_token"]
 

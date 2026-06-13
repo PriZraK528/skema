@@ -9,6 +9,7 @@ from sqlalchemy.pool import StaticPool
 os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 os.environ["JWT_SECRET_KEY"] = "test-secret"
 os.environ["SEED_ON_STARTUP"] = "false"
+os.environ["CLINIC_REGISTRATION_KEY"] = "test-clinic-key"
 
 
 @pytest.fixture()

@@ -5,7 +5,7 @@ from datetime import datetime
 from pydantic import BaseModel
 
 from app.models import NotificationType
-from app.schemas.common import ORMModel, PaginatedResponse
+from app.schemas.common import ORMModel
 
 
 class NotificationOut(ORMModel):
@@ -20,6 +20,3 @@ class NotificationOut(ORMModel):
 
 class NotificationMarkRead(BaseModel):
     is_read: bool = True
-
-
-NotificationList = PaginatedResponse[NotificationOut]

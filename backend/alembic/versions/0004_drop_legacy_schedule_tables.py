@@ -1,7 +1,7 @@
 """drop legacy schedule tables
 
 Revision ID: 0004_drop_legacy_schedule_tables
-Revises: 0003_remove_registrar_fix_booking
+Revises: 0003_remove_registrar
 Create Date: 2026-06-02
 
 """
@@ -10,7 +10,7 @@ from alembic import op
 
 
 revision = "0004_drop_legacy_schedule_tables"
-down_revision = "0003_remove_registrar_fix_booking"
+down_revision = "0003_remove_registrar"
 branch_labels = None
 depends_on = None
 

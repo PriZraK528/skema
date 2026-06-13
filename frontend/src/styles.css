@@ -11,7 +11,6 @@
   --accent-hover: #fb923c;
   --accent-dim: #ea580c;
   --accent-glow: rgba(249, 115, 22, 0.25);
-  --success: #22c55e;
   --danger: #ef4444;
   --radius: 10px;
   font-family: "Segoe UI", system-ui, sans-serif;
@@ -127,6 +126,27 @@ a:hover {
   padding-left: calc(0.85rem - 3px);
 }
 
+.nav-btn-label {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.5rem;
+}
+
+.nav-badge {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  min-width: 1.25rem;
+  height: 1.25rem;
+  padding: 0 0.35rem;
+  border-radius: 999px;
+  background: var(--danger, #c0392b);
+  color: #fff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  line-height: 1;
+}
+
 .main {
   flex: 1;
   min-width: 0;
@@ -163,8 +183,7 @@ label {
 }
 
 input,
-select,
-textarea {
+select {
   width: 100%;
   padding: 0.55rem 0.7rem;
   border-radius: 8px;
@@ -176,8 +195,7 @@ textarea {
 }
 
 input:focus,
-select:focus,
-textarea:focus {
+select:focus {
   outline: none;
   border-color: var(--accent);
   box-shadow: 0 0 0 3px var(--accent-glow);

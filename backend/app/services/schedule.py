@@ -6,6 +6,7 @@ from fastapi import HTTPException, status
 from sqlalchemy import select
 from sqlalchemy.orm import Session
 
+from app.constants import ErrorDetail
 from app.models import Appointment, AppointmentStatus, Doctor, DoctorAvailabilitySlot
 
 
@@ -82,18 +83,6 @@ def list_availability_slots(
     return slots
 
 
-def compute_free_slots(
-    db: Session,
-    doctor: Doctor,
-    from_date: date,
-    to_date: date,
-) -> list[tuple[datetime, datetime]]:
-    slots = list_availability_slots(
-        db, doctor.id, from_date=from_date, to_date=to_date, only_free=True
-    )
-    return [(s.starts_at, s.ends_at) for s in slots]
-
-
 def get_availability_slot(
     db: Session,
     doctor_id: int,
@@ -138,13 +127,13 @@ def create_availability_slot(
     starts_at = _normalize_dt(starts_at)
     ends_at = _normalize_dt(ends_at)
     if ends_at <= starts_at:
-        raise HTTPException(status_code=400, detail="ends_at must be after starts_at")
+        raise HTTPException(status_code=400, detail=ErrorDetail.ENDS_BEFORE_STARTS)
     if starts_at <= datetime.now(timezone.utc):
-        raise HTTPException(status_code=400, detail="Cannot create slots in the past")
+        raise HTTPException(status_code=400, detail=ErrorDetail.SLOT_IN_PAST)
 
     existing = get_availability_slot(db, doctor.id, starts_at)
     if existing:
-        raise HTTPException(status_code=409, detail="Slot at this time already exists")
+        raise HTTPException(status_code=409, detail=ErrorDetail.SLOT_ALREADY_EXISTS)
 
     overlap = db.scalar(
         select(DoctorAvailabilitySlot).where(
@@ -155,7 +144,7 @@ def create_availability_slot(
         )
     )
     if overlap:
-        raise HTTPException(status_code=409, detail="Overlaps with another availability slot")
+        raise HTTPException(status_code=409, detail=ErrorDetail.SLOT_OVERLAPS)
 
     slot = DoctorAvailabilitySlot(
         doctor_id=doctor.id,
@@ -175,8 +164,5 @@ def delete_availability_slot(db: Session, slot: DoctorAvailabilitySlot) -> None:
         slot.ends_at + timedelta(seconds=1),
     )
     if _overlaps_booked(slot.starts_at, slot.ends_at, booked):
-        raise HTTPException(
-            status_code=409,
-            detail="Cannot delete slot with an active appointment",
-        )
+        raise HTTPException(status_code=409, detail=ErrorDetail.SLOT_HAS_APPOINTMENT)
     db.delete(slot)

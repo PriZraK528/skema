@@ -1,5 +1,8 @@
 import { useCallback, useEffect, useState } from "react";
 import { api, Appointment, Doctor, FreeSlot, PatientBrief, User } from "../../api";
+import { GENERIC_ERROR_RU, SLOT_LOOKAHEAD_DAYS } from "../../constants";
+import { addDaysIso, formatDateTime, todayIsoDate } from "../../utils/datetime";
+import { isStaff } from "../../utils/roles";
 import { StatusBadge } from "../ui/StatusBadge";
 
 interface AppointmentsPanelProps {
@@ -18,7 +21,7 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
   const [error, setError] = useState("");
   const [search, setSearch] = useState("");
 
-  const staffView = user.role === "doctor" || user.role === "admin";
+  const staffView = isStaff(user);
 
   const load = useCallback(async () => {
     const [d, a] = await Promise.all([
@@ -40,8 +43,8 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
   }, [staffView]);
 
   const loadSlots = async () => {
-    const from = new Date().toISOString().slice(0, 10);
-    const to = new Date(Date.now() + 14 * 86400000).toISOString().slice(0, 10);
+    const from = todayIsoDate();
+    const to = addDaysIso(new Date(), SLOT_LOOKAHEAD_DAYS);
     const s = await api.freeSlots(doctorId, from, to);
     setSlots(s);
     if (s.length) setSlot(s[0].starts_at);
@@ -65,7 +68,7 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
       setNote("");
       await load();
     } catch (e) {
-      setError(e instanceof Error ? e.message : "Ошибка");
+      setError(e instanceof Error ? e.message : GENERIC_ERROR_RU);
     }
   };
 
@@ -100,7 +103,7 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
             <select value={slot} onChange={(e) => setSlot(e.target.value)} disabled={!slots.length}>
               {slots.map((s) => (
                 <option key={s.starts_at} value={s.starts_at}>
-                  {new Date(s.starts_at).toLocaleString("ru-RU")}
+                  {formatDateTime(s.starts_at)}
                 </option>
               ))}
             </select>
@@ -152,7 +155,7 @@ export function AppointmentsPanel({ user }: AppointmentsPanelProps) {
           <tbody>
             {appointments.map((a) => (
               <tr key={a.id}>
-                <td>{new Date(a.starts_at).toLocaleString("ru-RU")}</td>
+                <td>{formatDateTime(a.starts_at)}</td>
                 {staffView && <td>{a.patient_name ?? "—"}</td>}
                 <td>
                   {a.doctor_name} ({a.specialization})

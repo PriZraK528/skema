@@ -1,17 +1,20 @@
 import type { User } from "../../api";
+import { NAV_BADGE_MAX } from "../../constants";
+import { canManageSchedule, isAdmin } from "../../utils/roles";
 
 export type Tab = "appointments" | "schedule" | "notifications" | "profile" | "users";
 
 interface SidebarProps {
   tab: Tab;
   user: User;
+  unreadCount: number;
   onTabChange: (tab: Tab) => void;
   onLogout: () => void;
 }
 
-export function Sidebar({ tab, user, onTabChange, onLogout }: SidebarProps) {
-  const canSchedule = user.role === "doctor" || user.role === "admin";
-  const canUsers = user.role === "admin";
+export function Sidebar({ tab, user, unreadCount, onTabChange, onLogout }: SidebarProps) {
+  const canSchedule = canManageSchedule(user);
+  const canUsers = isAdmin(user);
 
   return (
     <aside className="sidebar">
@@ -41,7 +44,14 @@ export function Sidebar({ tab, user, onTabChange, onLogout }: SidebarProps) {
           className={`nav-btn ${tab === "notifications" ? "active" : ""}`}
           onClick={() => onTabChange("notifications")}
         >
-          Уведомления
+          <span className="nav-btn-label">
+            Уведомления
+            {unreadCount > 0 && (
+              <span className="nav-badge">
+                {unreadCount > NAV_BADGE_MAX ? `${NAV_BADGE_MAX}+` : unreadCount}
+              </span>
+            )}
+          </span>
         </button>
         <button
           type="button"
@@ -68,4 +78,3 @@ export function Sidebar({ tab, user, onTabChange, onLogout }: SidebarProps) {
     </aside>
   );
 }
-

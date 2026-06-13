@@ -1,9 +1,14 @@
 from sqlalchemy import select
 
+from app.constants import (
+    SEED_ADMIN_EMAIL,
+    SEED_DOCTOR_EMAIL,
+    SEED_DOCTOR_SPECIALIZATION,
+    SEED_PASSWORD,
+    SEED_PATIENT_EMAIL,
+)
 from app.models import Doctor, Patient, User, UserRole
 from app.security import hash_password
-
-SEED_PASSWORD = "Password123!"
 
 
 def run_seed() -> None:
@@ -15,7 +20,7 @@ def run_seed() -> None:
             return
 
         admin = User(
-            email="admin@clinic.example",
+            email=SEED_ADMIN_EMAIL,
             password_hash=hash_password(SEED_PASSWORD),
             role=UserRole.admin,
             full_name="Администратор",
@@ -24,7 +29,7 @@ def run_seed() -> None:
         db.add(admin)
 
         doc_user = User(
-            email="doctor@clinic.example",
+            email=SEED_DOCTOR_EMAIL,
             password_hash=hash_password(SEED_PASSWORD),
             role=UserRole.doctor,
             full_name="Иванов Иван",
@@ -35,13 +40,13 @@ def run_seed() -> None:
         doctor = Doctor(
             user_id=doc_user.id,
             full_name="Иванов Иван",
-            specialization="Терапевт",
+            specialization=SEED_DOCTOR_SPECIALIZATION,
         )
         db.add(doctor)
         db.flush()
 
         pat_user = User(
-            email="patient@clinic.example",
+            email=SEED_PATIENT_EMAIL,
             password_hash=hash_password(SEED_PASSWORD),
             role=UserRole.patient,
             full_name="Петров Пётр",

@@ -2,10 +2,17 @@ from __future__ import annotations
 
 from datetime import datetime, timedelta, timezone
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, select
 from sqlalchemy.orm import Session
 
+from app.constants import (
+    DEFAULT_NOTIFICATIONS_LIMIT,
+    ErrorDetail,
+    MAX_PAGE_LIMIT,
+    NOTIFICATION_TITLE_REMINDER,
+    REMINDER_WINDOW_HOURS,
+)
 from app.db import get_db
 from app.deps import get_current_user, require_roles
 from app.models import Appointment, AppointmentStatus, Notification, NotificationType, User, UserRole
@@ -16,11 +23,24 @@ from app.services.notifications import create_notification
 router = APIRouter(prefix="/notifications", tags=["notifications"])
 
 
+@router.get("/unread-count")
+def unread_count(
+    db: Session = Depends(get_db),
+    user: User = Depends(get_current_user),
+) -> dict[str, int]:
+    count = db.scalar(
+        select(func.count())
+        .select_from(Notification)
+        .where(Notification.user_id == user.id, Notification.is_read.is_(False))
+    )
+    return {"count": count or 0}
+
+
 @router.get("", response_model=PaginatedResponse[NotificationOut])
 def list_notifications(
     unread_only: bool = False,
     ntype: NotificationType | None = Query(default=None, alias="type"),
-    limit: int = Query(default=30, ge=1, le=100),
+    limit: int = Query(default=DEFAULT_NOTIFICATIONS_LIMIT, ge=1, le=MAX_PAGE_LIMIT),
     offset: int = Query(default=0, ge=0),
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
@@ -51,9 +71,7 @@ def mark_read(
 ):
     notification = db.get(Notification, notification_id)
     if not notification or notification.user_id != user.id:
-        from fastapi import HTTPException
-
-        raise HTTPException(status_code=404, detail="Notification not found")
+        raise HTTPException(status_code=404, detail=ErrorDetail.NOTIFICATION_NOT_FOUND)
     notification.is_read = payload.is_read
     db.commit()
     db.refresh(notification)
@@ -65,9 +83,9 @@ def run_reminders(
     db: Session = Depends(get_db),
     _: User = Depends(require_roles(UserRole.admin)),
 ):
-    """Send reminders for appointments in the next 24 hours (cron-friendly endpoint)."""
+    """Send reminders for appointments in the next N hours (cron-friendly endpoint)."""
     now = datetime.now(timezone.utc)
-    window_end = now + timedelta(hours=24)
+    window_end = now + timedelta(hours=REMINDER_WINDOW_HOURS)
     from sqlalchemy.orm import joinedload
 
     appointments = db.scalars(
@@ -85,7 +103,7 @@ def run_reminders(
             db,
             user_id=appt.patient.user_id,
             ntype=NotificationType.appointment_reminder,
-            title="Напоминание о приёме",
+            title=NOTIFICATION_TITLE_REMINDER,
             message=f"Приём {appt.starts_at.isoformat()} у врача {appt.doctor.full_name}",
             appointment_id=appt.id,
         )
