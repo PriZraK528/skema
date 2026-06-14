@@ -57,6 +57,8 @@ def normalize_password(value: str) -> str:
         raise ValueError(f"Пароль: минимум {MIN_PASSWORD_LENGTH} символов")
     if len(value) > MAX_PASSWORD_LENGTH:
         raise ValueError(f"Пароль: максимум {MAX_PASSWORD_LENGTH} символов")
+    if len(value.encode("utf-8")) > 72:
+        raise ValueError("Пароль: максимум 72 байта")
     return value
 
 

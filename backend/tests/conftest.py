@@ -10,12 +10,13 @@ os.environ["DATABASE_URL"] = "sqlite+pysqlite:///:memory:"
 os.environ["JWT_SECRET_KEY"] = "test-secret"
 os.environ["SEED_ON_STARTUP"] = "false"
 os.environ["CLINIC_REGISTRATION_KEY"] = "test-clinic-key"
+os.environ["ENABLE_APPOINTMENT_COMPLETER"] = "false"
 
 
-@pytest.fixture()
-def client():
+@pytest.fixture(scope="session")
+def db_engine():
     import app.db as db_module
-    from app.db import Base, get_db
+    from app.db import Base
     from app import models  # noqa: F401
     from app.seed import run_seed
 
@@ -24,14 +25,25 @@ def client():
         connect_args={"check_same_thread": False},
         poolclass=StaticPool,
     )
-    TestingSession = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     db_module.engine = engine
-    db_module.SessionLocal = TestingSession
-    Base.metadata.drop_all(bind=engine)
+    db_module.SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
     Base.metadata.create_all(bind=engine)
     run_seed()
+    yield engine
+    Base.metadata.drop_all(bind=engine)
 
+
+@pytest.fixture(scope="session", autouse=True)
+def _init_db(db_engine):
+    yield
+
+
+@pytest.fixture()
+def client(db_engine):
+    from app.db import get_db
     from app.main import create_app
+
+    TestingSession = sessionmaker(bind=db_engine, autoflush=False, autocommit=False)
 
     app = create_app()
 
@@ -47,5 +59,4 @@ def client():
     with TestClient(app) as test_client:
         yield test_client
 
-    Base.metadata.drop_all(bind=engine)
     app.dependency_overrides.clear()

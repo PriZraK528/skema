@@ -21,6 +21,9 @@ class Settings(BaseSettings):
     # Required when registering as a doctor (shared with clinic staff).
     clinic_registration_key: str = "clinic-demo-key"
 
+    enable_appointment_completer: bool = True
+    appointment_complete_interval_seconds: int = 60
+
     @property
     def cors_origins_list(self) -> list[str]:
         return [o.strip() for o in self.cors_origins.split(",") if o.strip()]

@@ -40,3 +40,6 @@ target-version = "py39"
 
 [tool.pytest.ini_options]
 testpaths = ["tests"]
+markers = [
+    "slow: schemathesis fuzz tests",
+]

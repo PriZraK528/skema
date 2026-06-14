@@ -116,3 +116,38 @@ def test_no_slots_without_doctor_create(client: TestClient):
         json={"doctor_id": 1, "starts_at": starts_at.isoformat()},
     )
     assert book.status_code == 409
+
+
+def test_past_appointment_auto_completes(client: TestClient):
+    from app.db import SessionLocal
+    from app.models import Appointment
+
+    doctor_token = _login(client, "doctor@clinic.example")
+    doctor_headers = {"Authorization": f"Bearer {doctor_token}"}
+    starts_at = _next_weekday_morning() + timedelta(hours=4)
+    _create_slot(client, doctor_headers, starts_at)
+
+    patient_token = _login(client, "patient@clinic.example")
+    patient_headers = {"Authorization": f"Bearer {patient_token}"}
+
+    book = client.post(
+        "/api/appointments",
+        headers=patient_headers,
+        json={"doctor_id": 1, "starts_at": starts_at.isoformat()},
+    )
+    assert book.status_code == 201, book.text
+    appt_id = book.json()["id"]
+
+    db = SessionLocal()
+    try:
+        appt = db.get(Appointment, appt_id)
+        assert appt is not None
+        appt.ends_at = datetime.now(timezone.utc) - timedelta(minutes=1)
+        db.commit()
+    finally:
+        db.close()
+
+    listed = client.get("/api/appointments", headers=patient_headers)
+    assert listed.status_code == 200
+    row = next(item for item in listed.json()["items"] if item["id"] == appt_id)
+    assert row["status"] == "completed"

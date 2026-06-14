@@ -3,7 +3,7 @@ from __future__ import annotations
 from datetime import datetime, timezone
 
 from fastapi import HTTPException, status
-from sqlalchemy import select
+from sqlalchemy import select, update
 from sqlalchemy.orm import Session, joinedload
 
 from app.constants import (
@@ -161,6 +161,22 @@ def create_appointment(
     db.commit()
     db.refresh(appointment)
     return load_appointment(db, appointment.id)
+
+
+def complete_past_appointments(db: Session) -> int:
+    """Mark booked appointments as completed once their end time has passed."""
+    now = datetime.now(timezone.utc)
+    result = db.execute(
+        update(Appointment)
+        .where(
+            Appointment.status == AppointmentStatus.booked,
+            Appointment.ends_at <= now,
+        )
+        .values(status=AppointmentStatus.completed, updated_at=now)
+    )
+    if result.rowcount:
+        db.commit()
+    return result.rowcount or 0
 
 
 def cancel_appointment(db: Session, appointment: Appointment, user: User) -> Appointment:

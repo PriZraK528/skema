@@ -14,6 +14,7 @@ from app.schemas.appointment import AppointmentAssign, AppointmentCreate, Appoin
 from app.schemas.common import PaginatedResponse
 from app.services.appointments import (
     cancel_appointment,
+    complete_past_appointments,
     create_appointment,
     enrich_appointment,
     list_appointments_query,
@@ -36,6 +37,7 @@ def list_appointments(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
+    complete_past_appointments(db)
     stmt = list_appointments_query(db, user)
     if status_filter:
         stmt = stmt.where(Appointment.status == status_filter)
