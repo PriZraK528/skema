@@ -67,7 +67,6 @@ def list_doctor_slots(
     db: Session = Depends(get_db),
     user: User = Depends(get_current_user),
 ):
-    """Все окна врача (включая занятые записью)."""
     _get_doctor_or_404(db, doctor_id)
     slots = list_availability_slots(db, doctor_id, from_date=from_date, to_date=to_date)
     if not slots:
@@ -87,7 +86,6 @@ def add_availability_slot(
     db: Session = Depends(get_db),
     user: User = Depends(require_roles(UserRole.admin, UserRole.doctor)),
 ):
-    """Врач вручную открывает окно для записи."""
     doctor = _get_doctor_or_404(db, doctor_id)
     _ensure_schedule_access(doctor, user, write=True)
 
@@ -127,7 +125,6 @@ def free_slots(
     db: Session = Depends(get_db),
     _: User = Depends(get_current_user),
 ):
-    """Свободные окна — только те, что врач создал и которые ещё не заняты."""
     doctor = _get_doctor_or_404(db, doctor_id)
     if to_date is None:
         to_date = from_date + timedelta(days=FREE_SLOTS_DEFAULT_RANGE_DAYS)

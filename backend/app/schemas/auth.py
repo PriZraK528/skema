@@ -13,7 +13,7 @@ from app.constants import (
     PHONE_INPUT_MIN_LENGTH,
 )
 from app.models import UserRole
-from app.schemas.common import TokenPair, UserPublic
+from app.schemas.common import UserPublic
 from app.validators import (
     normalize_full_name,
     normalize_password,
@@ -81,7 +81,10 @@ class RefreshRequest(BaseModel):
     refresh_token: str = Field(min_length=1)
 
 
-class AuthResponse(TokenPair):
+class AuthResponse(BaseModel):
+    access_token: str
+    refresh_token: str
+    token_type: str = "bearer"
     user: UserPublic
 
 

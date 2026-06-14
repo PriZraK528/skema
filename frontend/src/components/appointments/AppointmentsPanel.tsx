@@ -22,7 +22,7 @@ export function AppointmentsPanel({ user, onActivity }: AppointmentsPanelProps) 
   const [patients, setPatients] = useState<PatientBrief[]>([]);
   const [appointments, setAppointments] = useState<Appointment[]>([]);
   const [slots, setSlots] = useState<FreeSlot[]>([]);
-  const [doctorId, setDoctorId] = useState(1);
+  const [doctorId, setDoctorId] = useState(0);
   const [slot, setSlot] = useState("");
   const [note, setNote] = useState("");
   const [patientName, setPatientName] = useState("");
@@ -181,9 +181,8 @@ export function AppointmentsPanel({ user, onActivity }: AppointmentsPanelProps) 
                 options={patientPickerOptions}
                 value={patientName}
                 onChange={setPatientName}
-                allowCustom
-                placeholder="Например, Петров Пётр"
-                emptyHint="Пациент не найден — можно ввести новое ФИО"
+                placeholder="Выберите пациента"
+                emptyHint="Пациент не найден"
               />
             </>
           )}
@@ -222,6 +221,13 @@ export function AppointmentsPanel({ user, onActivity }: AppointmentsPanelProps) 
             </tr>
           </thead>
           <tbody>
+            {appointments.length === 0 && (
+              <tr>
+                <td colSpan={adminView ? 6 : 5} className="muted">
+                  Нет записей
+                </td>
+              </tr>
+            )}
             {appointments.map((a) => (
               <tr key={a.id}>
                 <td>{formatDateTime(a.starts_at)}</td>

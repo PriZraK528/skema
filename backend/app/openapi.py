@@ -1,5 +1,3 @@
-"""OpenAPI response helpers for documented error codes."""
-
 from __future__ import annotations
 
 from fastapi.openapi.utils import get_openapi

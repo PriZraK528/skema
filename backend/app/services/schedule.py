@@ -17,7 +17,6 @@ def _ensure_utc(dt: datetime) -> datetime:
 
 
 def _normalize_dt(dt: datetime) -> datetime:
-    """Drop microseconds so API round-trips match DB values."""
     return _ensure_utc(dt).replace(microsecond=0)
 
 

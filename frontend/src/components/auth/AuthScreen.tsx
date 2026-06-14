@@ -4,6 +4,8 @@ import {
   GENERIC_ERROR_RU,
   MIN_PASSWORD_LENGTH,
   OTHER_SPECIALIZATION,
+  SEED_ADMIN_EMAIL,
+  SEED_DOCTOR_EMAIL,
   SEED_PASSWORD,
   SEED_PATIENT_EMAIL,
 } from "../../constants";
@@ -12,7 +14,7 @@ import { roleOptions, specializationOptions } from "../../utils/pickerOptions";
 import { OptionPicker } from "../ui/OptionPicker";
 
 interface AuthScreenProps {
-  onAuth: (user: User, access: string) => void;
+  onAuth: (user: User, access: string, refresh: string) => void;
 }
 
 export function AuthScreen({ onAuth }: AuthScreenProps) {
@@ -80,7 +82,7 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
         mode === "login"
           ? await api.login(form.email, form.password)
           : await api.register(payload);
-      onAuth(res.user, res.access_token);
+      onAuth(res.user, res.access_token, res.refresh_token);
     } catch (err) {
       setError(err instanceof Error ? err.message : GENERIC_ERROR_RU);
     }
@@ -189,7 +191,8 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           </a>
         </p>
         <p className="muted" style={{ marginTop: "0.5rem" }}>
-          Демо: {SEED_PATIENT_EMAIL} / {SEED_PASSWORD}
+          Демо (пароль {SEED_PASSWORD}): {SEED_PATIENT_EMAIL}, {SEED_DOCTOR_EMAIL},{" "}
+          {SEED_ADMIN_EMAIL}
         </p>
       </div>
     </div>

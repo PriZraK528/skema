@@ -12,7 +12,6 @@ import {
 
 const EMAIL_RE = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
-/** Нормализует российский номер к виду +7XXXXXXXXXX. */
 export function normalizePhone(phone: string): string | null {
   const digits = phone.replace(/\D/g, "");
 

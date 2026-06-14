@@ -20,7 +20,7 @@ interface SchedulePanelProps {
 
 export function SchedulePanel({ user, onActivity }: SchedulePanelProps) {
   const [doctors, setDoctors] = useState<Doctor[]>([]);
-  const [doctorId, setDoctorId] = useState(1);
+  const [doctorId, setDoctorId] = useState(0);
   const [slots, setSlots] = useState<AvailabilitySlot[]>([]);
   const [startsAt, setStartsAt] = useState(() =>
     toDatetimeLocal(new Date(Date.now() + MS_PER_DAY)),
@@ -40,8 +40,8 @@ export function SchedulePanel({ user, onActivity }: SchedulePanelProps) {
     setDoctors(d.items);
     const id =
       user.role === "doctor"
-        ? d.items.find((x) => x.user_id === user.id)?.id ?? d.items[0]?.id ?? 1
-        : doctorId || d.items[0]?.id || 1;
+        ? d.items.find((x) => x.user_id === user.id)?.id ?? d.items[0]?.id ?? 0
+        : doctorId || d.items[0]?.id || 0;
     setDoctorId(id);
     if (id) await loadSlots(id);
   };

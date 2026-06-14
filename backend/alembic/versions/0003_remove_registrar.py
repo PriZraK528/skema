@@ -16,6 +16,7 @@ depends_on = None
 
 
 def upgrade() -> None:
+    op.execute("DELETE FROM users WHERE email = 'registrar@clinic.example'")
     op.execute("UPDATE users SET role = 'admin' WHERE role = 'registrar'")
     op.execute(
         "ALTER TABLE appointments DROP CONSTRAINT IF EXISTS uq_appointment_doctor_starts_at"

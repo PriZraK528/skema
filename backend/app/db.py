@@ -11,7 +11,6 @@ class Base(DeclarativeBase):
 
 
 def db_enum(enum_cls: type[enum.Enum], name: str) -> Enum:
-    """PostgreSQL: native ENUM (как в Alembic). SQLite: VARCHAR (для тестов)."""
     native = settings.database_url.startswith("postgresql")
     return Enum(enum_cls, name=name, native_enum=native)
 

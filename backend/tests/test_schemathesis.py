@@ -1,5 +1,3 @@
-"""OpenAPI fuzzing via Schemathesis (run explicitly: pytest tests/test_schemathesis.py -q)."""
-
 import uuid
 
 import pytest

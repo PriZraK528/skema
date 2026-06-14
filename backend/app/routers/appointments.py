@@ -1,15 +1,13 @@
 from __future__ import annotations
 
-from datetime import datetime
-
-from fastapi import APIRouter, Depends, HTTPException, Query, status
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_, select
 from sqlalchemy.orm import Session
 
 from app.constants import DEFAULT_PAGE_LIMIT, ErrorDetail, MAX_PAGE_LIMIT
 from app.db import get_db
 from app.deps import get_current_user, require_roles
-from app.models import Appointment, AppointmentStatus, Doctor, Patient, User, UserRole
+from app.models import Appointment, Doctor, Patient, User, UserRole
 from app.schemas.appointment import AppointmentAssign, AppointmentCreate, AppointmentOut
 from app.schemas.common import PaginatedResponse
 from app.services.appointments import (
@@ -26,11 +24,6 @@ router = APIRouter(prefix="/appointments", tags=["appointments"])
 
 @router.get("", response_model=PaginatedResponse[AppointmentOut])
 def list_appointments(
-    status_filter: AppointmentStatus | None = Query(default=None, alias="status"),
-    doctor_id: int | None = None,
-    patient_id: int | None = None,
-    from_dt: datetime | None = Query(default=None, alias="from"),
-    to_dt: datetime | None = Query(default=None, alias="to"),
     q: str | None = Query(default=None, description="Search in note, patient or doctor name"),
     limit: int = Query(default=DEFAULT_PAGE_LIMIT, ge=1, le=MAX_PAGE_LIMIT),
     offset: int = Query(default=0, ge=0),
@@ -39,16 +32,6 @@ def list_appointments(
 ):
     complete_past_appointments(db)
     stmt = list_appointments_query(db, user)
-    if status_filter:
-        stmt = stmt.where(Appointment.status == status_filter)
-    if doctor_id:
-        stmt = stmt.where(Appointment.doctor_id == doctor_id)
-    if patient_id:
-        stmt = stmt.where(Appointment.patient_id == patient_id)
-    if from_dt:
-        stmt = stmt.where(Appointment.starts_at >= from_dt)
-    if to_dt:
-        stmt = stmt.where(Appointment.starts_at <= to_dt)
     if q:
         pattern = f"%{q.strip()}%"
         stmt = (
@@ -72,7 +55,7 @@ def list_appointments(
     )
 
 
-@router.post("", response_model=AppointmentOut, status_code=status.HTTP_201_CREATED)
+@router.post("", response_model=AppointmentOut, status_code=201)
 def book_appointment(
     payload: AppointmentCreate,
     db: Session = Depends(get_db),
@@ -92,7 +75,7 @@ def book_appointment(
     return enrich_appointment(appointment)
 
 
-@router.post("/assign", response_model=AppointmentOut, status_code=status.HTTP_201_CREATED)
+@router.post("/assign", response_model=AppointmentOut, status_code=201)
 def assign_appointment(
     payload: AppointmentAssign,
     db: Session = Depends(get_db),
@@ -112,19 +95,6 @@ def assign_appointment(
         patient_id=payload.patient_id,
         patient_name=payload.patient_name,
     )
-    return enrich_appointment(appointment)
-
-
-@router.get("/{appointment_id}", response_model=AppointmentOut)
-def get_appointment(
-    appointment_id: int,
-    db: Session = Depends(get_db),
-    user: User = Depends(get_current_user),
-):
-    from app.services.appointments import _check_access
-
-    appointment = load_appointment(db, appointment_id)
-    _check_access(appointment, user)
     return enrich_appointment(appointment)
 
 

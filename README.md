@@ -1,107 +1,113 @@
-# SKEMA — сервис управления онлайн-записями пациентов
+# SKEMA — онлайн-запись в клинику
 
-Fullstack CRUD: **FastAPI** + **PostgreSQL** + **React (Vite/TypeScript)**.  
-JWT, роли, ручное расписание врача, онлайн-запись, уведомления, REST API с фильтрацией и поиском.
+Веб-приложение для записи пациентов на приём: врач открывает окна в расписании, пациент выбирает свободный слот, администратор и врач могут назначать записи пациентам.
 
-## Функциональность
+Стек: **FastAPI**, **PostgreSQL**, **React** (Vite, TypeScript). JWT: access-токен (30 мин) и refresh-токен (14 дней); фронт обновляет сессию автоматически.
 
-| Модуль | Возможности |
-|--------|-------------|
-| **Пользователи** | Регистрация, вход, refresh-токен, профиль; роли: `admin`, `doctor`, `patient` |
-| **Расписание** | Врач создаёт окна приёма вручную; админ выбирает врача (ФИО + специальность) и управляет его окнами |
-| **Записи** | Запись пациентом, отмена, назначение врачом/админом по ФИО пациента (`POST /api/appointments/assign`) |
-| **Уведомления** | О записи, отмене, изменении расписания; счётчик непрочитанных в меню; cron-напоминания (`POST /api/notifications/reminders/run`) |
-| **API** | OpenAPI `/docs`, JSON, пагинация, фильтры (`q`, `status`, `from`, `to`) |
+## Быстрый старт
 
-### Роли
-
-| Роль | Доступ |
-|------|--------|
-| `patient` | Запись к врачу, свои записи, профиль, уведомления |
-| `doctor` | Своё расписание, назначение записей по ФИО пациента, просмотр своих приёмов |
-| `admin` | Расписание любого врача, назначение записей, список пользователей |
-
-## Структура проекта
-
-```
-skema/
-├── docker-compose.yml          # db + backend + frontend
-├── backend/
-│   ├── entrypoint.sh           # миграции, seed, запуск API (Docker)
-│   ├── app/
-│   │   ├── constants.py        # специальности, seed, ошибки, лимиты
-│   │   ├── main.py
-│   │   ├── models.py           # ORM-модели (users, doctors, patients, appointments…)
-│   │   ├── db.py               # подключение к PostgreSQL
-│   │   ├── security.py, deps.py, seed.py
-│   │   ├── routers/            # auth, users, doctors, patients, schedule, appointments, notifications
-│   │   ├── schemas/
-│   │   └── services/
-│   ├── alembic/                # миграции БД
-│   ├── tests/
-│   ├── Dockerfile
-│   └── pyproject.toml
-└── frontend/
-    ├── src/
-    │   ├── App.tsx             # маршрутизация вкладок и auth
-    │   ├── api.ts
-    │   ├── constants.ts        # лимиты, подписи ролей, перевод ошибок
-    │   ├── utils/              # roles.ts, datetime.ts
-    │   ├── styles.css
-    │   └── components/
-    │       ├── auth/AuthScreen.tsx
-    │       ├── appointments/AppointmentsPanel.tsx
-    │       ├── schedule/SchedulePanel.tsx
-    │       ├── notifications/NotificationsPanel.tsx
-    │       ├── profile/ProfilePanel.tsx
-    │       ├── users/UsersPanel.tsx
-    │       ├── layout/AppLayout.tsx, Sidebar.tsx
-    │       └── ui/StatusBadge.tsx, RoleBadge.tsx
-    ├── Dockerfile
-    └── package.json
-```
-
-## Запуск (Docker)
-
-1. Запустите **Docker Desktop**.
-2. В корне проекта:
+Нужен [Docker Desktop](https://www.docker.com/products/docker-desktop/). В корне проекта:
 
 ```bash
 docker compose up --build
 ```
 
-### Демо-аккаунты (пароль: `Password123!`)
+| Сервис   | Адрес |
+|----------|--------|
+| Frontend | http://localhost:5173 |
+| Backend  | http://localhost:8000 |
+| Swagger  | http://localhost:8000/docs |
+
+При первом запуске выполняются миграции БД и создаются демо-пользователи.
+
+## Демо-аккаунты
+
+Пароль для всех: `Password123!`
 
 | Email | Роль |
 |-------|------|
-| admin@clinic.example | admin |
-| doctor@clinic.example | doctor |
-| patient@clinic.example | patient |
+| patient@clinic.example | Пациент |
+| doctor@clinic.example | Врач |
+| admin@clinic.example | Администратор |
 
-## Тестирование
+Ключ регистрации врача (Docker): `clinic-demo-key`
+
+## Роли и возможности
+
+**Пациент** — запись к врачу на свободное окно, просмотр и отмена своих записей, профиль, уведомления.
+
+**Врач** — создание и удаление своих окон приёма, назначение записей пациентам из списка зарегистрированных, просмотр своих приёмов.
+
+**Администратор** — управление расписанием любого врача, назначение записей, просмотр всех записей, список пользователей.
+
+Записаться можно только на окно, которое врач заранее создал в разделе «Расписание». Прошедшие записи со статусом «Записан» автоматически переводятся в «Завершён».
+
+## Структура проекта
+
+```
+skema/
+├── docker-compose.yml
+├── backend/          # FastAPI, Alembic, тесты
+│   ├── app/
+│   │   ├── routers/  # auth, users, doctors, patients, schedule, appointments, notifications
+│   │   ├── services/
+│   │   └── models.py
+│   └── tests/
+└── frontend/         # React SPA
+    └── src/
+        └── components/
+```
+
+## API
+
+Префикс: `/api`. Документация: `/docs`.
+
+| Метод | Путь | Назначение |
+|-------|------|------------|
+| POST | `/auth/register`, `/auth/login` | Регистрация и вход |
+| POST | `/auth/refresh` | Обновление access-токена |
+| GET | `/auth/specializations` | Специальности для регистрации врача |
+| PATCH | `/auth/me` | Редактирование профиля |
+| GET | `/users` | Список пользователей (admin) |
+| GET | `/doctors` | Список врачей |
+| GET | `/patients` | Список пациентов (admin, doctor) |
+| GET/POST | `/doctors/{id}/schedule/slots` | Окна приёма |
+| DELETE | `/schedule/slots/{id}` | Удалить свободное окно |
+| GET | `/doctors/{id}/slots/free` | Свободные слоты для записи |
+| GET/POST | `/appointments` | Список и создание записи |
+| POST | `/appointments/assign` | Назначение записи по ФИО пациента |
+| POST | `/appointments/{id}/cancel` | Отмена |
+| GET | `/notifications` | Уведомления |
+| GET | `/notifications/unread-count` | Счётчик непрочитанных |
+| PATCH | `/notifications/{id}` | Отметить прочитанным |
+| POST | `/notifications/read-all` | Прочитать все |
+
+## Локальная разработка без Docker
+
+**Backend:**
+
+```bash
+cd backend
+python -m venv venv
+venv\Scripts\activate          # Windows
+pip install -e ".[dev]"
+alembic upgrade head
+uvicorn app.main:app --reload
+```
+
+**Frontend:**
+
+```bash
+cd frontend
+npm install
+npm run dev
+```
+
+## Тесты
 
 ```bash
 cd backend
 pip install -e ".[dev]"
 pytest -q
-pytest tests/test_schemathesis.py -q   # OpenAPI fuzzing, дольше
+pytest tests/test_schemathesis.py -q
 ```
-
-## Основные API (префикс `/api`)
-
-| Метод | Путь | Описание |
-|-------|------|----------|
-| POST | `/auth/register`, `/auth/login` | Регистрация / вход |
-| GET | `/auth/specializations` | Список специальностей для регистрации врача |
-| GET/PATCH | `/auth/me` | Профиль |
-| GET | `/users` | Список пользователей (admin) |
-| GET | `/doctors` | Список врачей (`q`) |
-| GET | `/patients` | Список пациентов для назначения |
-| GET/POST | `/doctors/{id}/schedule/slots` | Окна приёма |
-| DELETE | `/schedule/slots/{id}` | Удалить свободное окно |
-| GET | `/doctors/{id}/slots/free?from=&to=` | Свободные слоты |
-| GET/POST | `/appointments` | Записи |
-| POST | `/appointments/assign` | Назначение по `patient_name` |
-| POST | `/appointments/{id}/cancel` | Отмена |
-| GET | `/notifications` | Уведомления |
-| GET | `/notifications/unread-count` | Число непрочитанных |

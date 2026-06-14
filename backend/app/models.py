@@ -60,8 +60,6 @@ class Doctor(Base):
 
 
 class DoctorAvailabilitySlot(Base):
-    """Окно приёма, которое врач создаёт вручную. Без записи в этой таблице записаться нельзя."""
-
     __tablename__ = "doctor_availability_slots"
     __table_args__ = (
         UniqueConstraint("doctor_id", "starts_at", name="uq_doctor_availability_starts_at"),

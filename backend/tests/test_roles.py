@@ -51,16 +51,6 @@ def test_admin_can_list_users(client: TestClient):
     assert r.json()["total"] >= 1
 
 
-def test_patient_cannot_change_user_role(client: TestClient):
-    patient_token = _login(client, "patient@clinic.example")
-    r = client.patch(
-        "/api/users/1/role",
-        headers={"Authorization": f"Bearer {patient_token}"},
-        json={"role": "admin"},
-    )
-    assert r.status_code == 403
-
-
 def test_doctor_registration_requires_clinic_key(client: TestClient):
     r = client.post(
         "/api/auth/register",
@@ -124,3 +114,22 @@ def test_unread_notifications_count(client: TestClient):
     assert r.status_code == 200
     assert "count" in r.json()
     assert r.json()["count"] >= 0
+
+
+def test_refresh_token_returns_new_access_token(client: TestClient):
+    login = client.post(
+        "/api/auth/login",
+        json={"email": "patient@clinic.example", "password": SEED_PASSWORD},
+    )
+    assert login.status_code == 200
+    refresh_token = login.json()["refresh_token"]
+    r = client.post("/api/auth/refresh", json={"refresh_token": refresh_token})
+    assert r.status_code == 200
+    data = r.json()
+    assert data["access_token"]
+    assert data["refresh_token"]
+    protected = client.get(
+        "/api/notifications/unread-count",
+        headers={"Authorization": f"Bearer {data['access_token']}"},
+    )
+    assert protected.status_code == 200

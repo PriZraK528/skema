@@ -19,6 +19,8 @@ export const MAX_FULL_NAME_LENGTH = 200;
 export const MAX_NOTE_LENGTH = 500;
 export const PHONE_ERROR_RU = "Телефон: укажите номер в формате +7XXXXXXXXXX";
 
+export const SEED_ADMIN_EMAIL = "admin@clinic.example";
+export const SEED_DOCTOR_EMAIL = "doctor@clinic.example";
 export const SEED_PATIENT_EMAIL = "patient@clinic.example";
 export const SEED_PASSWORD = "Password123!";
 
@@ -36,7 +38,6 @@ export const APPOINTMENT_STATUS_LABELS: Record<string, string> = {
   completed: "Завершён",
 };
 
-/** Mirrors backend `ErrorDetail` enum values. */
 export const API_ERRORS: Record<string, string> = {
   "Not authenticated": "Требуется авторизация",
   "Invalid token": "Недействительный токен",

@@ -26,7 +26,6 @@ router = APIRouter(prefix="/auth", tags=["auth"])
 
 @router.get("/specializations", response_model=list[str])
 def list_specializations() -> list[str]:
-    """Common specializations for doctor registration."""
     return list(DOCTOR_SPECIALIZATIONS)
 
 
@@ -59,7 +58,7 @@ def register(payload: RegisterRequest, db: Session = Depends(get_db)):
             Doctor(
                 user_id=user.id,
                 full_name=payload.full_name,
-                specialization=payload.specialization.strip(),  # type: ignore[union-attr]
+                specialization=payload.specialization.strip(),
             )
         )
 
@@ -85,23 +84,23 @@ def login(payload: LoginRequest, db: Session = Depends(get_db)):
 
 
 @router.post("/refresh", response_model=TokenPair)
-def refresh(payload: RefreshRequest):
+def refresh(payload: RefreshRequest, db: Session = Depends(get_db)):
     try:
         data = decode_token(payload.refresh_token)
     except JWTError:
         raise HTTPException(status_code=401, detail=ErrorDetail.INVALID_REFRESH_TOKEN)
     if data.get("type") != TOKEN_TYPE_REFRESH:
         raise HTTPException(status_code=401, detail=ErrorDetail.INVALID_TOKEN_TYPE)
-    user_id = int(data["sub"])
+    try:
+        user_id = int(data["sub"])
+    except (KeyError, TypeError, ValueError):
+        raise HTTPException(status_code=401, detail=ErrorDetail.INVALID_REFRESH_TOKEN)
+    if not db.get(User, user_id):
+        raise HTTPException(status_code=401, detail=ErrorDetail.INVALID_REFRESH_TOKEN)
     return TokenPair(
         access_token=create_access_token(user_id),
         refresh_token=create_refresh_token(user_id),
     )
-
-
-@router.get("/me", response_model=UserPublic)
-def me(user: User = Depends(get_current_user)):
-    return user_to_public(user)
 
 
 @router.patch("/me", response_model=UserPublic)

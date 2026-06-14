@@ -1,8 +1,4 @@
-"""Shared application constants."""
-
 from enum import Enum
-
-# --- Domain lists ---
 
 DOCTOR_SPECIALIZATIONS: tuple[str, ...] = (
     "Терапевт",
@@ -20,21 +16,15 @@ DOCTOR_SPECIALIZATIONS: tuple[str, ...] = (
     "Эндокринолог",
 )
 
-# --- Seed / demo ---
-
 SEED_PASSWORD = "Password123!"
 SEED_ADMIN_EMAIL = "admin@clinic.example"
 SEED_DOCTOR_EMAIL = "doctor@clinic.example"
 SEED_PATIENT_EMAIL = "patient@clinic.example"
 SEED_DOCTOR_SPECIALIZATION = DOCTOR_SPECIALIZATIONS[0]
 
-# --- Pagination ---
-
 DEFAULT_PAGE_LIMIT = 50
 MAX_PAGE_LIMIT = 100
 DEFAULT_NOTIFICATIONS_LIMIT = 50
-
-# --- Auth / JWT ---
 
 JWT_ALGORITHM = "HS256"
 TOKEN_TYPE_ACCESS = "access"
@@ -50,27 +40,17 @@ MIN_SPECIALIZATION_LENGTH = 2
 MAX_SPECIALIZATION_LENGTH = 200
 MAX_NOTE_LENGTH = 500
 
-# --- Schedule / slots ---
-
-DEFAULT_SLOT_DURATION_MINUTES = 30
 MIN_SLOT_DURATION_MINUTES = 5
 MAX_SLOT_DURATION_MINUTES = 480
 FREE_SLOTS_DEFAULT_RANGE_DAYS = 60
-REMINDER_WINDOW_HOURS = 24
-APPOINTMENT_COMPLETE_INTERVAL_SECONDS = 60
-
-# --- Notification titles (Russian) ---
 
 NOTIFICATION_TITLE_BOOKED = "Запись подтверждена"
 NOTIFICATION_TITLE_NEW_APPOINTMENT = "Новая запись"
 NOTIFICATION_TITLE_CANCELLED = "Запись отменена"
-NOTIFICATION_TITLE_REMINDER = "Напоминание о приёме"
 NOTIFICATION_TITLE_SCHEDULE_CHANGED = "Изменение расписания"
 
 
 class ErrorDetail(str, Enum):
-    """API error detail strings (keys for frontend API_ERRORS)."""
-
     NOT_AUTHENTICATED = "Not authenticated"
     INVALID_TOKEN = "Invalid token"
     INVALID_TOKEN_TYPE = "Invalid token type"

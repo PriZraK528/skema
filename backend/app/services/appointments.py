@@ -164,7 +164,6 @@ def create_appointment(
 
 
 def complete_past_appointments(db: Session) -> int:
-    """Mark booked appointments as completed once their end time has passed."""
     now = datetime.now(timezone.utc)
     result = db.execute(
         update(Appointment)
@@ -209,7 +208,7 @@ def _check_access(appointment: Appointment, user: User, write: bool = False) -> 
     raise HTTPException(status_code=403, detail=ErrorDetail.ACCESS_DENIED)
 
 
-def list_appointments_query(db: Session, user: User):  # noqa: ANN201
+def list_appointments_query(db: Session, user: User):
     q = select(Appointment).options(
         joinedload(Appointment.patient).joinedload(Patient.user),
         joinedload(Appointment.doctor).joinedload(Doctor.user),

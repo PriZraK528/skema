@@ -1,5 +1,3 @@
-"""Property-based fuzzing of API inputs (roles, schedule, auth)."""
-
 from datetime import datetime, timedelta, timezone
 
 import pytest
@@ -20,7 +18,7 @@ def test_register_role_rejects_unknown_strings(role: str):
         RegisterRequest(
             email="fuzz@example.com",
             password=SEED_PASSWORD,
-            role=role,  # type: ignore[arg-type]
+            role=role,
             full_name="Fuzz User",
             phone="+79990000000",
         )

@@ -34,9 +34,12 @@ export interface User {
   specialization?: string;
 }
 
-export interface AuthResponse {
+export interface TokenPair {
   access_token: string;
   refresh_token: string;
+}
+
+export interface AuthResponse extends TokenPair {
   user: User;
 }
 
@@ -106,14 +109,57 @@ function authHeaders(): HeadersInit {
     : { "Content-Type": "application/json" };
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+function clearSession() {
+  localStorage.removeItem("access_token");
+  localStorage.removeItem("refresh_token");
+  localStorage.removeItem("user");
+}
+
+let refreshPromise: Promise<boolean> | null = null;
+
+async function tryRefreshSession(): Promise<boolean> {
+  const refreshToken = localStorage.getItem("refresh_token");
+  if (!refreshToken) return false;
+  if (!refreshPromise) {
+    refreshPromise = (async () => {
+      try {
+        const res = await fetch(`${API_BASE}/api/auth/refresh`, {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify({ refresh_token: refreshToken }),
+        });
+        if (!res.ok) return false;
+        const data = (await res.json()) as TokenPair;
+        localStorage.setItem("access_token", data.access_token);
+        localStorage.setItem("refresh_token", data.refresh_token);
+        return true;
+      } catch {
+        return false;
+      } finally {
+        refreshPromise = null;
+      }
+    })();
+  }
+  return refreshPromise;
+}
+
+function isAuthPath(path: string): boolean {
+  return (
+    path === "/api/auth/login" ||
+    path === "/api/auth/register" ||
+    path === "/api/auth/refresh"
+  );
+}
+
+async function request<T>(path: string, init?: RequestInit, retried = false): Promise<T> {
   const res = await fetch(`${API_BASE}${path}`, {
     ...init,
     headers: { ...authHeaders(), ...init?.headers },
   });
-  if (res.status === 401) {
-    localStorage.removeItem("access_token");
-    localStorage.removeItem("user");
+  if (res.status === 401 && !retried && !isAuthPath(path)) {
+    const refreshed = await tryRefreshSession();
+    if (refreshed) return request<T>(path, init, true);
+    clearSession();
     window.location.reload();
   }
   if (!res.ok) {
@@ -122,6 +168,12 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   }
   if (res.status === 204) return undefined as T;
   return res.json();
+}
+
+export function saveSession(user: User, access: string, refresh: string) {
+  localStorage.setItem("user", JSON.stringify(user));
+  localStorage.setItem("access_token", access);
+  localStorage.setItem("refresh_token", refresh);
 }
 
 const listLimit = `limit=${DEFAULT_LIST_LIMIT}`;
@@ -140,8 +192,7 @@ export const api = {
   specializations: () => request<string[]>("/api/auth/specializations"),
   updateProfile: (data: Record<string, unknown>) =>
     request<User>("/api/auth/me", { method: "PATCH", body: JSON.stringify(data) }),
-  doctors: (q?: string) =>
-    request<Paginated<Doctor>>(`/api/doctors?${listLimit}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
+  doctors: () => request<Paginated<Doctor>>(`/api/doctors?${listLimit}`),
   freeSlots: (doctorId: number, from: string, to?: string) =>
     request<FreeSlot[]>(
       `/api/doctors/${doctorId}/slots/free?from=${from}${to ? `&to=${to}` : ""}`,
@@ -171,12 +222,8 @@ export const api = {
     request<Appointment>(`/api/appointments/${id}/cancel`, { method: "POST" }),
   unreadNotificationsCount: () =>
     request<{ count: number }>("/api/notifications/unread-count"),
-  patients: (q?: string) =>
-    request<PatientBrief[]>(`/api/patients?${listLimit}${q ? `&q=${encodeURIComponent(q)}` : ""}`),
-  notifications: (unreadOnly = false) =>
-    request<Paginated<Notification>>(
-      `/api/notifications?${listLimit}${unreadOnly ? "&unread_only=true" : ""}`,
-    ),
+  patients: () => request<PatientBrief[]>(`/api/patients?${listLimit}`),
+  notifications: () => request<Paginated<Notification>>(`/api/notifications?${listLimit}`),
   markNotification: (id: number) =>
     request<Notification>(`/api/notifications/${id}`, {
       method: "PATCH",

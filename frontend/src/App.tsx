@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
-import { api, User } from "./api";
+import { api, saveSession, User } from "./api";
 import { AuthScreen } from "./components/auth/AuthScreen";
 import { AppointmentsPanel } from "./components/appointments/AppointmentsPanel";
 import { SchedulePanel } from "./components/schedule/SchedulePanel";
@@ -46,9 +46,8 @@ export default function App() {
     }
   }, [user, tab]);
 
-  const onAuth = (u: User, access: string) => {
-    localStorage.setItem("user", JSON.stringify(u));
-    localStorage.setItem("access_token", access);
+  const onAuth = (u: User, access: string, refresh: string) => {
+    saveSession(u, access, refresh);
     setUser(u);
   };
 

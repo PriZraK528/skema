@@ -8,8 +8,6 @@ class Settings(BaseSettings):
     app_host: str = "0.0.0.0"
     app_port: int = 8000
 
-    # Default values keep local tooling (alembic/tests) usable out of the box.
-    # In Docker/production these are overridden via environment variables.
     database_url: str = "postgresql+psycopg://clinic:clinic@localhost:5432/clinic"
 
     jwt_secret_key: str = "dev-secret-change-me"
@@ -18,7 +16,6 @@ class Settings(BaseSettings):
 
     cors_origins: str = "http://localhost:5173"
 
-    # Required when registering as a doctor (shared with clinic staff).
     clinic_registration_key: str = "clinic-demo-key"
 
     enable_appointment_completer: bool = True
