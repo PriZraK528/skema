@@ -22,7 +22,7 @@ dist/
 *.tsbuildinfo
 
 .env
-.env.*
+.env.local
 
 .idea/
 .vscode/

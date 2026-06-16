@@ -4,10 +4,6 @@ import {
   GENERIC_ERROR_RU,
   MIN_PASSWORD_LENGTH,
   OTHER_SPECIALIZATION,
-  SEED_ADMIN_EMAIL,
-  SEED_DOCTOR_EMAIL,
-  SEED_PASSWORD,
-  SEED_PATIENT_EMAIL,
 } from "../../constants";
 import { validateRegisterForm, normalizePhone } from "../../utils/validation";
 import { roleOptions, specializationOptions } from "../../utils/pickerOptions";
@@ -189,10 +185,6 @@ export function AuthScreen({ onAuth }: AuthScreenProps) {
           >
             {mode === "login" ? "Регистрация" : "Вход"}
           </a>
-        </p>
-        <p className="muted" style={{ marginTop: "0.5rem" }}>
-          Демо (пароль {SEED_PASSWORD}): {SEED_PATIENT_EMAIL}, {SEED_DOCTOR_EMAIL},{" "}
-          {SEED_ADMIN_EMAIL}
         </p>
       </div>
     </div>
